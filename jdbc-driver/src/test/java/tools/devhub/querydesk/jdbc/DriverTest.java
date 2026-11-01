@@ -46,6 +46,8 @@ import java.util.concurrent.atomic.AtomicReference;
 public final class DriverTest {
   private static final AtomicReference<String> NEXT_BODY = new AtomicReference<>();
   private static final AtomicReference<Integer> NEXT_STATUS = new AtomicReference<>(200);
+  private static final AtomicReference<String> NEXT_TYPE = new AtomicReference<>("application/json");
+  private static final AtomicReference<String> LAST_ACCEPT = new AtomicReference<>();
   private static final AtomicReference<Map<?, ?>> LAST_REQUEST = new AtomicReference<>();
   private static final AtomicReference<String> LAST_AUTHORIZATION = new AtomicReference<>();
   private static final AtomicReference<String> ACCEPTED_TOKEN = new AtomicReference<>();
@@ -60,10 +62,14 @@ public final class DriverTest {
     server.createContext("/api/v1/querydesk/statements", exchange -> {
       String authorization = exchange.getRequestHeaders().getFirst("authorization");
       LAST_AUTHORIZATION.set(authorization);
+      LAST_ACCEPT.set(exchange.getRequestHeaders().getFirst("accept"));
       LAST_REQUEST.set((Map<?, ?>) Json.parse(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
       String accepted = ACCEPTED_TOKEN.get();
       if (accepted != null && !("Bearer " + accepted).equals(authorization)) reply(exchange, 401, "");
-      else reply(exchange, NEXT_STATUS.get(), NEXT_BODY.get());
+      else {
+        exchange.getResponseHeaders().set("content-type", NEXT_TYPE.get());
+        reply(exchange, NEXT_STATUS.get(), NEXT_BODY.get());
+      }
     });
     String base = "http://127.0.0.1:" + server.getAddress().getPort();
     server.createContext("/.well-known/oauth-authorization-server", exchange -> reply(exchange, 200,
@@ -100,6 +106,7 @@ public final class DriverTest {
     try (Connection connection = DriverManager.getConnection(url, "", "member-token")) {
       readsTypedRows(connection);
       readsArrays(connection);
+      readsStreamedRows(connection);
       returnsUpdateCounts(connection);
       bindsPreparedStatementParameters(connection);
       reportsQueryDeskErrors(connection);
@@ -213,7 +220,8 @@ public final class DriverTest {
 
       respond(409, "{\"error\": \"This query needs review before it runs.\", \"query_id\": \"qry_1\"}");
       SQLException review = expect("a query held for review", SQLException.class, () -> statement.execute("DELETE FROM t"));
-      check("names the query to approve", review.getSQLState(), "QD409");
+      check("names the query to approve", review.getSQLState() + " " + review.getMessage(),
+          "QD409 This query needs review before it runs. Query qry_1 is waiting for approval in QueryDesk.");
 
       respond(401, "");
       expect("a rejected token", SQLInvalidAuthorizationSpecException.class, () -> statement.execute("SELECT 1"));
@@ -322,6 +330,39 @@ public final class DriverTest {
   private static void respond(int status, String body) {
     NEXT_STATUS.set(status);
     NEXT_BODY.set(body);
+    NEXT_TYPE.set("application/json");
+  }
+
+  private static void respondStream(String... lines) {
+    NEXT_STATUS.set(200);
+    NEXT_BODY.set(String.join("\n", lines) + "\n");
+    NEXT_TYPE.set("application/x-ndjson; charset=utf-8");
+  }
+
+  private static void readsStreamedRows(Connection connection) throws SQLException {
+    try (Statement statement = connection.createStatement()) {
+      respondStream("{\"columns\": [{\"name\": \"n\", \"type\": \"integer\"}]}", "{\"rows\": [[1], [2]]}", "{\"rows\": [[3]]}", "{\"done\": true}");
+      ResultSet rs = statement.executeQuery("SELECT n");
+      check("asks for the rows as a stream", LAST_ACCEPT.get(), "application/x-ndjson, application/json");
+      check("reads the first streamed row", rs.next() && rs.getLong(1) == 1 && rs.isFirst(), true);
+      check("reads on into the next chunk", rs.next() && rs.next() && rs.getLong("n") == 3 && rs.isLast(), true);
+      check("ends after the last chunk", rs.next() || !rs.isAfterLast(), false);
+      check("scrolls back over what it read", rs.absolute(-2) && rs.getLong(1) == 2 && rs.getRow() == 2, true);
+
+      respondStream("{\"command\": \"delete\", \"num_rows\": 4}", "{\"done\": true}");
+      check("a streamed write is its count", statement.executeUpdate("DELETE FROM t"), 4);
+
+      respondStream("{\"columns\": [{\"name\": \"n\", \"type\": \"integer\"}]}", "{\"rows\": [[1]]}", "{\"error\": \"division by zero\"}");
+      ResultSet failing = statement.executeQuery("SELECT 1 / n");
+      check("rows before an error still read", failing.next(), true);
+      SQLException partway = expect("an error partway", SQLSyntaxErrorException.class, failing::next);
+      check("names the database's error partway", partway.getMessage(), "division by zero");
+
+      respondStream("{\"columns\": [{\"name\": \"n\", \"type\": \"integer\"}]}", "{\"rows\": [[1]]}");
+      ResultSet cut = statement.executeQuery("SELECT n");
+      check("a stream with no done", cut.next(), true);
+      check("is cut short", expect("a cut stream", SQLException.class, cut::next).getSQLState(), "08006");
+    }
   }
 
   private interface Action {

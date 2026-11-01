@@ -57,6 +57,7 @@ final class StatementHandler extends Handler {
       case "getLargeUpdateCount":
         return updateCount;
       case "getMoreResults":
+        closeResult();
         resultSet = null;
         updateCount = -1;
         return false;
@@ -101,6 +102,7 @@ final class StatementHandler extends Handler {
         return false;
       case "close":
         closed = true;
+        closeResult();
         resultSet = null;
         return null;
       case "isClosed":
@@ -108,8 +110,10 @@ final class StatementHandler extends Handler {
       case "clearParameters":
         parameters.clear();
         return null;
-      // a statement already sent runs to its end in QueryDesk
+      // closing a streamed result stops its query in QueryDesk
       case "cancel":
+        closeResult();
+        return null;
       case "clearWarnings":
       case "setFetchDirection":
       case "setEscapeProcessing":
@@ -126,6 +130,11 @@ final class StatementHandler extends Handler {
     }
   }
 
+  // a result left open would hold its stream, and its query, open
+  private void closeResult() throws SQLException {
+    if (resultSet != null) resultSet.close();
+  }
+
   private String sql(Object[] a) throws SQLException {
     if (a.length > 0 && a[0] instanceof String sql) return sql;
     if (preparedSql == null) throw new SQLException("No SQL to execute", "07003");
@@ -133,6 +142,7 @@ final class StatementHandler extends Handler {
   }
 
   private void run(String sql) throws SQLException {
+    closeResult();
     Result result = connection.client.execute(sql, maxRows);
     if (result.hasRows()) {
       resultSet = ResultSetHandler.proxy(result, proxy);

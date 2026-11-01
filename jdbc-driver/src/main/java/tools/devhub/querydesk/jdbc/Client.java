@@ -1,10 +1,14 @@
 package tools.devhub.querydesk.jdbc;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.sql.SQLInvalidAuthorizationSpecException;
 import java.sql.SQLNonTransientConnectionException;
@@ -36,17 +40,26 @@ final class Client {
     String request = Json.write(body);
 
     String token = tokens.current();
-    HttpResponse<String> response = send(request, token);
+    HttpResponse<InputStream> response = send(request, token);
     // an expired token is renewed once; a statement rejected for its token never ran
-    if (response.statusCode() == 401 && tokens.renew(token)) response = send(request, tokens.current());
+    if (response.statusCode() == 401 && tokens.renew(token)) {
+      closeQuietly(response.body());
+      response = send(request, tokens.current());
+    }
 
     int status = response.statusCode();
-    if (status == 401) throw new SQLInvalidAuthorizationSpecException("QueryDesk rejected the token. Sign in again.", "28000");
+    boolean streamed = response.headers().firstValue("content-type").orElse("").startsWith("application/x-ndjson");
+    if (status == 200 && streamed) return streamedResult(response.body());
 
-    Map<?, ?> json = parseObject(response.body(), status);
+    if (status == 401) {
+      closeQuietly(response.body());
+      throw new SQLInvalidAuthorizationSpecException("QueryDesk rejected the token. Sign in again.", "28000");
+    }
+
+    Map<?, ?> json = parseObject(readAll(response.body()), status);
     Object error = json.get("error");
 
-    if (status == 409) throw new SQLException(error + " Approve " + json.get("query_id") + " in QueryDesk, then run it again.", "QD409");
+    if (status == 409) throw new SQLException(error + " Query " + json.get("query_id") + " is waiting for approval in QueryDesk.", "QD409");
     if (status == 404) throw new SQLNonTransientConnectionException(String.valueOf(error), "08001");
     if (status == 422) throw new SQLSyntaxErrorException(String.valueOf(error), "42000");
     if (status != 200) throw new SQLException("QueryDesk answered " + status + (error == null ? "" : ": " + error), "08006");
@@ -54,17 +67,49 @@ final class Client {
     return toResult(json);
   }
 
-  private HttpResponse<String> send(String json, String token) throws SQLException {
+  /**
+   * One statement's rows as QueryDesk reads them: a line naming the columns (or a write's
+   * count), a line per chunk of rows, then done. Only the first line is read here.
+   */
+  private static Result streamedResult(InputStream body) throws SQLException {
+    BufferedReader reader = new BufferedReader(new InputStreamReader(body, StandardCharsets.UTF_8));
+    Rows rows = Rows.streamed(reader);
+    Map<?, ?> first;
+    try {
+      first = parseObject(reader.readLine(), 200);
+    } catch (IOException e) {
+      rows.close();
+      throw new SQLException("Lost QueryDesk's result: " + e.getMessage(), "08006", e);
+    }
+
+    if (first.get("columns") instanceof List<?> columns) {
+      List<String> names = new ArrayList<>();
+      List<String> types = new ArrayList<>();
+      for (Object column : columns) {
+        Map<?, ?> map = (Map<?, ?>) column;
+        names.add((String) map.get("name"));
+        types.add((String) map.get("type"));
+      }
+      return Result.rows(names, types, rows);
+    }
+
+    // a write: its count, then done, which size() reads
+    rows.size();
+    return Result.count(first.get("num_rows") instanceof Number n ? n.longValue() : 0);
+  }
+
+  private HttpResponse<InputStream> send(String json, String token) throws SQLException {
     HttpRequest request = HttpRequest.newBuilder(endpoint)
         .header("authorization", "Bearer " + token)
         .header("content-type", "application/json")
-        .header("accept", "application/json")
+        // a statement's rows stream back as they're read; several statements come back whole
+        .header("accept", "application/x-ndjson, application/json")
         .timeout(Duration.ofMinutes(10))
         .POST(HttpRequest.BodyPublishers.ofString(json))
         .build();
 
     try {
-      return http.send(request, HttpResponse.BodyHandlers.ofString());
+      return http.send(request, HttpResponse.BodyHandlers.ofInputStream());
     } catch (IOException e) {
       // HttpClient's ConnectException has no message when the port is closed
       String reason = e.getMessage() != null ? e.getMessage()
@@ -77,9 +122,25 @@ final class Client {
     }
   }
 
+  private static String readAll(InputStream body) throws SQLException {
+    try (body) {
+      return new String(body.readAllBytes(), StandardCharsets.UTF_8);
+    } catch (IOException e) {
+      throw new SQLException("Lost QueryDesk's answer: " + e.getMessage(), "08006", e);
+    }
+  }
+
+  private static void closeQuietly(InputStream body) {
+    try {
+      body.close();
+    } catch (IOException e) {
+      // nothing left to read from it either way
+    }
+  }
+
   private static Map<?, ?> parseObject(String body, int status) throws SQLException {
     try {
-      if (Json.parse(body) instanceof Map<?, ?> map) return map;
+      if (body != null && Json.parse(body) instanceof Map<?, ?> map) return map;
     } catch (RuntimeException e) {
       // falls through to the error below, which names the status
     }

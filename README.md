@@ -12,6 +12,8 @@ database password.
   safe (Keychain, Windows Credential Manager, or libsecret/KeePass), so you stay signed in across
   restarts. Each connection gets a fresh access token, and the driver renews it through the IDE
   when it expires, so a connection held open for hours keeps working.
+- Rows stream as QueryDesk reads them: the first page shows without waiting for the rest, and
+  closing a result stops its query.
 - One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.
 
 ## Build
@@ -41,7 +43,6 @@ The Marketplace takes a new plugin's first version only through its website uplo
 ## Limitations
 
 - Transactions are not supported yet; leave the transaction mode on Auto.
-- Results are held in memory, capped by the data source's max rows.
 
 ## Contributing
 

@@ -22,7 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
 
-/** Rows QueryDesk returned, held in memory and read with each column's QueryDesk type. */
+/** Rows QueryDesk returned, read with each column's QueryDesk type as the caller moves through them. */
 final class ResultSetHandler extends Handler {
   private final Result result;
   private final Statement statement;
@@ -42,48 +42,57 @@ final class ResultSetHandler extends Handler {
   @Override
   Object handle(Object self, Method method, Object[] a) throws SQLException {
     String name = method.getName();
-    int size = result.rows().size();
+    Rows rows = result.rows();
 
+    // only last, afterLast and a negative absolute need the whole result
     switch (name) {
       case "next":
-        row = Math.min(row + 1, size);
-        return row < size;
+        if (rows.has(row + 1)) {
+          row++;
+          return true;
+        }
+        row = rows.has(row) || row == -1 ? row + 1 : row;
+        return false;
       case "previous":
         row = Math.max(row - 1, -1);
         return row >= 0;
       case "first":
         row = 0;
-        return size > 0;
+        return rows.has(0);
       case "last":
-        row = size - 1;
-        return size > 0;
+        row = rows.size() - 1;
+        return row >= 0;
       case "beforeFirst":
         row = -1;
         return null;
       case "afterLast":
-        row = size;
+        row = rows.size();
         return null;
       case "absolute": {
         int n = (Integer) a[0];
         // 0 is before the first row, and a negative n counts back from the last
-        row = Math.max(-1, Math.min(size, n > 0 ? n - 1 : n == 0 ? -1 : size + n));
-        return row >= 0 && row < size;
+        if (n > 0) row = rows.has(n - 1) ? n - 1 : rows.size();
+        else row = n == 0 ? -1 : Math.max(-1, rows.size() + n);
+        return rows.has(row);
       }
-      case "relative":
-        row = Math.max(-1, Math.min(size, row + (Integer) a[0]));
-        return row >= 0 && row < size;
+      case "relative": {
+        int target = Math.max(-1, row + (Integer) a[0]);
+        row = target == -1 || rows.has(target) ? target : rows.size();
+        return rows.has(row);
+      }
       case "getRow":
-        return row >= 0 && row < size ? row + 1 : 0;
+        return rows.has(row) ? row + 1 : 0;
       case "isBeforeFirst":
-        return row == -1 && size > 0;
+        return row == -1 && rows.has(0);
       case "isAfterLast":
-        return row >= size && size > 0;
+        return row >= 0 && !rows.has(row) && rows.has(0);
       case "isFirst":
-        return row == 0 && size > 0;
+        return row == 0 && rows.has(0);
       case "isLast":
-        return row == size - 1 && size > 0;
+        return rows.has(row) && !rows.has(row + 1);
       case "close":
         closed = true;
+        rows.close();
         return null;
       case "isClosed":
         return closed;
@@ -119,7 +128,6 @@ final class ResultSetHandler extends Handler {
   }
 
   private Object get(Method method, Object[] a) throws SQLException {
-    if (row < 0 || row >= result.rows().size()) throw new SQLException("No current row", "24000");
     int column = column(a[0]);
     Object raw = result.rows().get(row).get(column);
     String type = result.types().get(column);

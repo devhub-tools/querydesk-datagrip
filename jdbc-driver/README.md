@@ -4,7 +4,8 @@ In DataGrip, use the [plugin](../README.md), which ships this driver and keeps y
 
 A JDBC driver that opens no connection to the database. Each statement goes to QueryDesk's
 `POST /api/v1/querydesk/statements` over HTTPS and runs there as the signed-in member, with
-their access, reviews, data protection and the audit log applied. No dependencies, Java 17.
+their access, reviews, data protection and the audit log applied. One statement's rows stream
+back as QueryDesk reads them, and closing the result stops the query. No dependencies, Java 17.
 
 ```bash
 jdbc-driver/test.sh
@@ -34,7 +35,6 @@ QUERYDESK_TOKEN=... java -cp jdbc-driver/build/querydesk-jdbc.jar:jdbc-driver/bu
 ## Limitations
 
 - Transactions: not supported yet.
-- Streaming: the whole result is held in memory on both sides. `max_rows` (JDBC's maxRows) is the only cap.
 - Types come from the values QueryDesk returns, not from the database. A 16-byte binary value reads
   as a uuid, and an empty column has no type.
 - Every introspection query DataGrip runs is recorded in the audit log as a Query.
