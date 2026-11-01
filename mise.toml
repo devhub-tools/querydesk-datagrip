@@ -1,0 +1,5 @@
+# The plugin builds against DataGrip's SDK, which needs JDK 21 and Gradle; kept here so the
+# rest of the repo's toolchain is untouched.
+[tools]
+java = "temurin-21.0.12+101.0.LTS"
+gradle = "9.8.1"

@@ -1,0 +1,36 @@
+<idea-plugin>
+  <id>tools.devhub.querydesk</id>
+  <name>QueryDesk</name>
+  <vendor url="https://querydesk.com">QueryDesk</vendor>
+  <description><![CDATA[
+    Connect to the databases you reach through QueryDesk. Each query runs in QueryDesk, with
+    your access, reviews, data protection and the audit log applied, so DataGrip never holds
+    a database password. Sign in once in your browser; the plugin keeps you signed in.
+  ]]></description>
+  <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.database</depends>
+
+  <extensions defaultExtensionNs="com.intellij">
+    <postStartupActivity implementation="tools.devhub.querydesk.datagrip.RegisterDriverJar"/>
+    <notificationGroup id="QueryDesk" displayType="BALLOON"/>
+  </extensions>
+
+  <extensions defaultExtensionNs="com.intellij.database">
+    <driversConfig config="databaseDrivers/querydesk-drivers.xml"/>
+    <connectionInterceptor implementation="tools.devhub.querydesk.datagrip.QueryDeskAuthProvider"/>
+  </extensions>
+
+  <actions>
+    <group id="QueryDesk.Tools" text="QueryDesk" popup="true">
+      <add-to-group group-id="ToolsMenu" anchor="last"/>
+      <action id="QueryDesk.AddDatabases" class="tools.devhub.querydesk.datagrip.AddDatabasesAction"
+              text="Connect QueryDesk" icon="/icons/querydesk.svg"
+              description="Sign in to QueryDesk and add a data source for each database you can use">
+        <!-- DataGrip has no Tools menu, so it's also in the Database Explorer's + menu -->
+        <add-to-group group-id="DatabaseView.AddActionGroup" anchor="after" relative-to-action="DatabaseView.AddDataSourceGroup"/>
+      </action>
+      <action id="QueryDesk.SignOut" class="tools.devhub.querydesk.datagrip.SignOutAction"
+              text="Sign Out of QueryDesk" description="Forget this IDE's QueryDesk sign-in"/>
+    </group>
+  </actions>
+</idea-plugin>

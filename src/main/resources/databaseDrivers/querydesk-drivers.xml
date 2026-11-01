@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- One per engine, since a driver definition fixes DataGrip's dialect. RegisterDriverJar adds the jar. -->
+<drivers>
+  <driver id="querydesk-postgres" name="QueryDesk (PostgreSQL)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="PostgreSQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-mysql" name="QueryDesk (MySQL)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-sqlserver" name="QueryDesk (SQL Server)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="TSQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-oracle" name="QueryDesk (Oracle)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="Oracle">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-clickhouse" name="QueryDesk (ClickHouse)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="ClickHouse">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+</drivers>
