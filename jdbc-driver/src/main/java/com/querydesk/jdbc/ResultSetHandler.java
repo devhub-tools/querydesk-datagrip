@@ -1,4 +1,4 @@
-package tools.devhub.querydesk.jdbc;
+package com.querydesk.jdbc;
 
 import java.io.ByteArrayInputStream;
 import java.io.StringReader;

@@ -1,4 +1,4 @@
-package tools.devhub.querydesk.jdbc;
+package com.querydesk.jdbc;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -11,7 +11,7 @@ import java.sql.Statement;
  * Runs each SQL argument through the driver against a real QueryDesk and prints what comes
  * back. QUERYDESK_TOKEN holds the token so it stays out of the shell history.
  *
- * <pre>java -cp build/querydesk-jdbc.jar:build/test-classes tools.devhub.querydesk.jdbc.Smoke \
+ * <pre>java -cp build/querydesk-jdbc.jar:build/test-classes com.querydesk.jdbc.Smoke \
  *   'jdbc:querydesk://localhost:4000/crd_...?ssl=false' 'SELECT 1'</pre>
  */
 public final class Smoke {

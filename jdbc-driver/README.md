@@ -7,6 +7,20 @@ A JDBC driver that opens no connection to the database. Each statement goes to Q
 their access, reviews, data protection and the audit log applied. One statement's rows stream
 back as QueryDesk reads them, and closing the result stops the query. No dependencies, Java 17.
 
+## Get it
+
+Maven Central has it as `com.querydesk:querydesk-jdbc`:
+
+```kotlin
+implementation("com.querydesk:querydesk-jdbc:0.1.0")
+```
+
+For a tool that takes a driver jar (DBeaver, DbVisualizer, SQuirreL), download
+`querydesk-jdbc-<version>.jar` from the [releases](https://github.com/devhub-tools/querydesk-datagrip/releases)
+tagged `jdbc-v<version>`. The driver class is `com.querydesk.jdbc.QueryDeskDriver`.
+
+## Build
+
 ```bash
 jdbc-driver/test.sh
 ```
@@ -16,7 +30,7 @@ builds `build/querydesk-jdbc.jar` and runs `DriverTest` against a local stand-in
 ## DataGrip
 
 1. Database → `+` → Driver. Add `build/querydesk-jdbc.jar` under Driver Files, class
-   `tools.devhub.querydesk.jdbc.QueryDeskDriver`, and set Dialect to PostgreSQL.
+   `com.querydesk.jdbc.QueryDeskDriver`, and set Dialect to PostgreSQL.
 2. New data source from that driver. URL `jdbc:querydesk://<host>/<credential id>`
    (`?ssl=false` for a local server). Leave Password empty: connecting opens the browser to sign
    in to QueryDesk. Tokens stay in the tool's memory, so it signs in once per run. A token in
@@ -27,7 +41,7 @@ Run SQL against a real server without DataGrip:
 
 ```bash
 QUERYDESK_TOKEN=... java -cp jdbc-driver/build/querydesk-jdbc.jar:jdbc-driver/build/test-classes \
-  tools.devhub.querydesk.jdbc.Smoke 'jdbc:querydesk://localhost:6600/crd_...?ssl=false' 'SELECT 1'
+  com.querydesk.jdbc.Smoke 'jdbc:querydesk://localhost:6600/crd_...?ssl=false' 'SELECT 1'
 ```
 
 `&trace=<file>` on the URL appends every JDBC call a tool makes, and what it got back, to that file.

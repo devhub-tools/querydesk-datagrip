@@ -1,4 +1,4 @@
-package tools.devhub.querydesk.jdbc;
+package com.querydesk.jdbc;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;

@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- One per engine, since a driver definition fixes DataGrip's dialect. RegisterDriverJar adds the jar. -->
 <drivers>
-  <driver id="querydesk-postgres" name="QueryDesk (PostgreSQL)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="PostgreSQL">
+  <driver id="querydesk-postgres" name="QueryDesk (PostgreSQL)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="PostgreSQL">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
-  <driver id="querydesk-mysql" name="QueryDesk (MySQL)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+  <driver id="querydesk-mysql" name="QueryDesk (MySQL)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
-  <driver id="querydesk-sqlserver" name="QueryDesk (SQL Server)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="TSQL">
+  <driver id="querydesk-sqlserver" name="QueryDesk (SQL Server)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="TSQL">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
-  <driver id="querydesk-oracle" name="QueryDesk (Oracle)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="Oracle">
+  <driver id="querydesk-oracle" name="QueryDesk (Oracle)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="Oracle">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
-  <driver id="querydesk-clickhouse" name="QueryDesk (ClickHouse)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="ClickHouse">
+  <driver id="querydesk-clickhouse" name="QueryDesk (ClickHouse)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="ClickHouse">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
   <!-- the console speaks mongosh, which QueryDesk reads; the catalog comes from QueryDesk's stored schema -->
-  <driver id="querydesk-mongodb" name="QueryDesk (MongoDB)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="MongoJS">
+  <driver id="querydesk-mongodb" name="QueryDesk (MongoDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MongoJS">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
 </drivers>
