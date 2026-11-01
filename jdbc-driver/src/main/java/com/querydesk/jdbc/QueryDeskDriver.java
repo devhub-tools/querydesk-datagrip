@@ -28,8 +28,8 @@ import java.util.logging.Logger;
  */
 public final class QueryDeskDriver implements Driver {
   static final String PREFIX = "jdbc:querydesk:";
-  static final int MAJOR_VERSION = 0;
-  static final int MINOR_VERSION = 1;
+  static final int MAJOR_VERSION = 2;
+  static final int MINOR_VERSION = 46;
 
   static {
     try {

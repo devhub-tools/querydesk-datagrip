@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "0.3.4-beta"
+version = "2.46.1"
 
 repositories {
   mavenCentral()
@@ -33,9 +33,11 @@ intellijPlatform {
     }
     changeNotes = """
       <ul>
-        <li>Connect QueryDesk adds a data source for every database credential you can use, grouped by QueryDesk group.</li>
-        <li>Browser sign-in that stays signed in across restarts, with the refresh token in the IDE's password safe.</li>
-        <li>PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.</li>
+        <li>Connect QueryDesk adds a data source for every database credential you can use, grouped by QueryDesk group, and keeps the list current as databases come and go.</li>
+        <li>Browser sign-in that stays signed in across restarts, with the access token renewed without signing you out.</li>
+        <li>PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB.</li>
+        <li>Rows stream as QueryDesk reads them, and closing a result stops the query.</li>
+        <li>Versioned with QueryDesk: 2.46.1 matches the QueryDesk release.</li>
       </ul>
     """.trimIndent()
   }
