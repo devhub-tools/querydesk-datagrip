@@ -10,7 +10,8 @@ database password.
   grouped under `QueryDesk/<group>`. Each one loads its schema the first time you open it.
 - **Sign-in**: OAuth in the browser with PKCE. The refresh token is kept in the IDE's password
   safe (Keychain, Windows Credential Manager, or libsecret/KeePass), so you stay signed in across
-  restarts, and each connection gets a fresh access token.
+  restarts. Each connection gets a fresh access token, and the driver renews it through the IDE
+  when it expires, so a connection held open for hours keeps working.
 - One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.
 
 ## Build
@@ -39,8 +40,6 @@ The Marketplace takes a new plugin's first version only through its website uplo
 
 ## Limitations
 
-- An access token lasts an hour and is handed to the driver when a connection opens, so a
-  connection held open longer has to reconnect.
 - Transactions are not supported yet; leave the transaction mode on Auto.
 - Results are held in memory, capped by the data source's max rows.
 

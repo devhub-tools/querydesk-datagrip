@@ -10,7 +10,8 @@ import kotlinx.coroutines.withContext
 /**
  * The "QueryDesk" choice under a data source's Authentication. On each connection it puts a
  * fresh QueryDesk access token where the driver reads its password, signing in in the browser
- * first when the IDE isn't signed in to that QueryDesk.
+ * first when the IDE isn't signed in to that QueryDesk, and tells the driver where to renew it
+ * ([TokenRelay]).
  */
 class QueryDeskAuthProvider : DatabaseAuthProvider {
   override fun getId() = ID
@@ -29,6 +30,10 @@ class QueryDeskAuthProvider : DatabaseAuthProvider {
     val token = withContext(Dispatchers.IO) { auth.accessToken(server) ?: if (silent) null else auth.signIn(server) }
       ?: return false
     proto.connectionProperties[DatabaseAuthProvider.PASSWORD_KEY] = token
+    // the driver asks the IDE for a new token when this one expires, not the user
+    val relay = TokenRelay.getInstance()
+    proto.connectionProperties["renewUrl"] = relay.url(server)
+    proto.connectionProperties["renewSecret"] = relay.secret
     return true
   }
 

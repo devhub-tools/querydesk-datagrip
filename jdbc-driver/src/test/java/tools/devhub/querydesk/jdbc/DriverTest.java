@@ -32,6 +32,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,6 +49,7 @@ public final class DriverTest {
   private static final AtomicReference<Map<?, ?>> LAST_REQUEST = new AtomicReference<>();
   private static final AtomicReference<String> LAST_AUTHORIZATION = new AtomicReference<>();
   private static final AtomicReference<String> ACCEPTED_TOKEN = new AtomicReference<>();
+  private static final AtomicReference<String> IDE_AUTHORIZATION = new AtomicReference<>();
   private static final AtomicReference<Map<String, String>> AUTHORIZE = new AtomicReference<>();
   private static final AtomicInteger REGISTRATIONS = new AtomicInteger();
   private static final List<String> GRANTS = new CopyOnWriteArrayList<>();
@@ -87,6 +89,11 @@ public final class DriverTest {
       if (valid) reply(exchange, 200, "{\"access_token\": \"at-" + issued + "\", \"refresh_token\": \"rt-" + issued + "\", \"expires_in\": 3600}");
       else reply(exchange, 400, "{\"error\": \"invalid_grant\"}");
     });
+    // the DataGrip plugin's loopback endpoint, handing out the token it renewed
+    server.createContext("/ide-token", exchange -> {
+      IDE_AUTHORIZATION.set(exchange.getRequestHeaders().getFirst("authorization"));
+      reply(exchange, 200, "ide-2");
+    });
     server.start();
     String url = base.replace("http://", "jdbc:querydesk://") + "/crd_test?ssl=false";
 
@@ -99,6 +106,7 @@ public final class DriverTest {
       refusesTransactions(connection);
       reportsTheConfiguredProduct(connection);
       signsInInTheBrowser(url);
+      renewsThroughTheIde(url, base);
     } finally {
       server.stop(0);
     }
@@ -266,6 +274,31 @@ public final class DriverTest {
       check("without the browser", opened.get(), 1);
     } finally {
       ACCEPTED_TOKEN.set(null);
+    }
+  }
+
+  private static void renewsThroughTheIde(String url, String base) throws Exception {
+    Properties ide = new Properties();
+    ide.setProperty("password", "ide-1");
+    ide.setProperty("renewUrl", base + "/ide-token");
+    ide.setProperty("renewSecret", "s3cret");
+    respond(200, "{\"columns\": [], \"rows\": []}");
+    ACCEPTED_TOKEN.set("ide-2");
+
+    try (Connection connection = DriverManager.getConnection(url, ide)) {
+      connection.createStatement().executeQuery("SELECT 1");
+      check("asks the IDE for a new token with its secret", IDE_AUTHORIZATION.get(), "Bearer s3cret");
+      check("retries with the IDE's token", LAST_AUTHORIZATION.get(), "Bearer ide-2");
+    } finally {
+      ACCEPTED_TOKEN.set(null);
+    }
+
+    // the secret only ever goes to this machine
+    ide.setProperty("renewUrl", "http://example.com/token");
+    try (Connection connection = DriverManager.getConnection(url, ide)) {
+      check("refuses a renewUrl off this machine", connection.isClosed() ? "closed" : "connected", "refused");
+    } catch (SQLException e) {
+      check("refuses a renewUrl off this machine", e.getSQLState(), "08001");
     }
   }
 

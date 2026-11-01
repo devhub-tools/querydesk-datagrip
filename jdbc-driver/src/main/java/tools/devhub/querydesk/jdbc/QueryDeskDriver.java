@@ -67,7 +67,13 @@ public final class QueryDeskDriver implements Driver {
 
     // with no token, the user signs in in their browser, which a tool waits for on connect
     String token = params.getOrDefault("password", params.get("token"));
-    Tokens tokens = token == null || token.isBlank() ? BrowserSignIn.forServer(baseUrl) : Tokens.fixed(token);
+    // An IDE that holds the sign-in (the DataGrip plugin) passes where to get a fresh token when
+    // this one expires. Read from the properties only, never the URL, since the secret goes there.
+    String renewUrl = info.getProperty("renewUrl");
+    Tokens tokens;
+    if (token == null || token.isBlank()) tokens = BrowserSignIn.forServer(baseUrl);
+    else if (renewUrl != null) tokens = Tokens.renewedBy(token, renewUrl, info.getProperty("renewSecret", ""));
+    else tokens = Tokens.fixed(token);
     tokens.current();
 
     Client client = new Client(baseUrl, credentialId, tokens);
