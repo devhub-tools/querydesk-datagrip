@@ -9,15 +9,9 @@ back as QueryDesk reads them, and closing the result stops the query. No depende
 
 ## Get it
 
-Maven Central has it as `com.querydesk:querydesk-jdbc`:
-
-```kotlin
-implementation("com.querydesk:querydesk-jdbc:0.1.0")
-```
-
-For a tool that takes a driver jar (DBeaver, DbVisualizer, SQuirreL), download
-`querydesk-jdbc-<version>.jar` from the [releases](https://github.com/devhub-tools/querydesk-datagrip/releases)
-tagged `jdbc-v<version>`. The driver class is `com.querydesk.jdbc.QueryDeskDriver`.
+Download `querydesk-jdbc-<version>.jar` from the [releases](https://github.com/devhub-tools/querydesk-datagrip/releases)
+tagged `jdbc-v<version>`, and add it as a driver file in your tool (DBeaver, DbVisualizer,
+SQuirreL, or a JetBrains IDE). The driver class is `com.querydesk.jdbc.QueryDeskDriver`.
 
 ## Build
 

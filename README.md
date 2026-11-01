@@ -45,16 +45,9 @@ the beta channel, a plain one to the default channel. It needs these repository 
 
 The Marketplace takes a new plugin's first version only through its website upload.
 
-The JDBC driver releases on its own. Set `version` in `jdbc-driver/build.gradle.kts` (and
-`MAJOR_VERSION`/`MINOR_VERSION` in `QueryDeskDriver`), then push a `jdbc-v0.1.0` tag. The
-Release JDBC driver workflow publishes `com.querydesk:querydesk-jdbc` to Maven Central and
-attaches the jar to a GitHub release. It needs these repository secrets:
-
-- `MAVEN_CENTRAL_USERNAME`, `MAVEN_CENTRAL_PASSWORD`: a user token from the
-  [Central Portal](https://central.sonatype.com), whose account has the verified `com.querydesk`
-  namespace.
-- `SIGNING_KEY`, `SIGNING_KEY_PASSWORD`: an ASCII-armored GPG private key and its passphrase. Its
-  public key must be on a keyserver such as keys.openpgp.org.
+The JDBC driver releases on its own. Set `MAJOR_VERSION` and `MINOR_VERSION` in
+`QueryDeskDriver`, then push a `jdbc-v0.1.0` tag. The Release JDBC driver workflow builds and
+tests it, and attaches `querydesk-jdbc-0.1.0.jar` to a GitHub release. It needs no secrets.
 
 ## Limitations
 
