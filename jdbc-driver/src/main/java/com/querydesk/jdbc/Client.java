@@ -19,7 +19,12 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Calls QueryDesk's statements API, which runs SQL as the member the token belongs to. */
+/**
+ * Calls QueryDesk's statements API, which runs SQL as the member the token belongs to. A
+ * connection's statements share one QueryDesk session, which holds a database connection open
+ * for them so each skips connecting to the database; it opens with the first statement and
+ * starts over when QueryDesk has ended it. A QueryDesk with no sessions runs each on its own.
+ */
 final class Client {
   private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(15)).build();
   private final URI endpoint;
@@ -27,27 +32,24 @@ final class Client {
   private final Tokens tokens;
 
   private final URI schemaEndpoint;
+  private final URI sessionsEndpoint;
+  private String sessionId;
+  private boolean sessionsUnsupported;
 
   Client(String baseUrl, String credentialId, Tokens tokens) {
     this.endpoint = URI.create(baseUrl + "/api/v1/querydesk/statements");
     this.schemaEndpoint = URI.create(baseUrl + "/api/v1/querydesk/credentials/" + credentialId + "/schema");
+    this.sessionsEndpoint = URI.create(baseUrl + "/api/v1/querydesk/sessions");
     this.credentialId = credentialId;
     this.tokens = tokens;
   }
 
   Result execute(String sql, long maxRows) throws SQLException {
-    Map<String, Object> body = new LinkedHashMap<>();
-    body.put("credential_id", credentialId);
-    body.put("sql", sql);
-    body.put("max_rows", maxRows);
-    String request = Json.write(body);
-
-    String token = tokens.current();
-    HttpResponse<InputStream> response = send(request, token);
-    // an expired token is renewed once; a statement rejected for its token never ran
-    if (response.statusCode() == 401 && tokens.renew(token)) {
+    HttpResponse<InputStream> response = sendStatement(sql, maxRows, session(false));
+    // the session ended (idle, or QueryDesk restarted): nothing ran, so a new one runs it
+    if (response.statusCode() == 410) {
       closeQuietly(response.body());
-      response = send(request, tokens.current());
+      response = sendStatement(sql, maxRows, session(true));
     }
 
     int status = response.statusCode();
@@ -68,6 +70,77 @@ final class Client {
     if (status != 200) throw new SQLException("QueryDesk answered " + status + (error == null ? "" : ": " + error), "08006");
 
     return toResult(json);
+  }
+
+  private HttpResponse<InputStream> sendStatement(String sql, long maxRows, String session) throws SQLException {
+    Map<String, Object> body = new LinkedHashMap<>();
+    body.put("credential_id", credentialId);
+    body.put("sql", sql);
+    body.put("max_rows", maxRows);
+    if (session != null) body.put("session_id", session);
+    String request = Json.write(body);
+
+    String token = tokens.current();
+    HttpResponse<InputStream> response = send(request, token);
+    // an expired token is renewed once; a statement rejected for its token never ran
+    if (response.statusCode() == 401 && tokens.renew(token)) {
+      closeQuietly(response.body());
+      response = send(request, tokens.current());
+    }
+    return response;
+  }
+
+  /** The session's id, opening one when there's none or {@code renew} asks for a new one. Null without sessions. */
+  private synchronized String session(boolean renew) throws SQLException {
+    if (sessionsUnsupported) return null;
+    if (sessionId != null && !renew) return sessionId;
+
+    String request = Json.write(Map.of("credential_id", credentialId));
+    String token = tokens.current();
+    HttpResponse<InputStream> response = post(sessionsEndpoint, request, token);
+    if (response.statusCode() == 401 && tokens.renew(token)) {
+      closeQuietly(response.body());
+      response = post(sessionsEndpoint, request, tokens.current());
+    }
+    String body = readAll(response.body());
+    if (response.statusCode() != 201) {
+      // a QueryDesk from before sessions; a credential that's gone fails its statement instead
+      sessionsUnsupported = true;
+      sessionId = null;
+      return null;
+    }
+    sessionId = String.valueOf(parseObject(body, 201).get("session_id"));
+    return sessionId;
+  }
+
+  /** Ends the session, closing its database connection. */
+  void close() {
+    String id;
+    synchronized (this) {
+      id = sessionId;
+      sessionId = null;
+    }
+    if (id == null) return;
+    try {
+      HttpRequest request = HttpRequest.newBuilder(URI.create(sessionsEndpoint + "/" + id))
+          .header("authorization", "Bearer " + tokens.current())
+          .timeout(Duration.ofSeconds(10))
+          .DELETE()
+          .build();
+      closeQuietly(send(request).body());
+    } catch (SQLException e) {
+      // QueryDesk ends it on its own once it sits idle
+    }
+  }
+
+  private HttpResponse<InputStream> post(URI uri, String json, String token) throws SQLException {
+    return send(HttpRequest.newBuilder(uri)
+        .header("authorization", "Bearer " + token)
+        .header("content-type", "application/json")
+        .header("accept", "application/json")
+        .timeout(Duration.ofMinutes(1))
+        .POST(HttpRequest.BodyPublishers.ofString(json))
+        .build());
   }
 
   /** The credential's database schema as QueryDesk last synced it: its name and tables with their columns. */

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "2.46.1"
+version = "2.46.1.1"
 
 repositories {
   mavenCentral()
@@ -37,7 +37,8 @@ intellijPlatform {
         <li>Browser sign-in that stays signed in across restarts, with the access token renewed without signing you out.</li>
         <li>PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB.</li>
         <li>Rows stream as QueryDesk reads them, and closing a result stops the query.</li>
-        <li>Versioned with QueryDesk: 2.46.1 matches the QueryDesk release.</li>
+        <li>A connection's statements share one held database connection in QueryDesk, so only the first waits to connect.</li>
+        <li>Versioned with QueryDesk: 2.46.1.1 follows the QueryDesk 2.46.1 release.</li>
       </ul>
     """.trimIndent()
   }

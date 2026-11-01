@@ -64,6 +64,7 @@ final class ConnectionHandler extends Handler {
         throw unsupported(method);
       case "close":
       case "abort":
+        if (!closed) client.close();
         closed = true;
         return null;
       case "isClosed":

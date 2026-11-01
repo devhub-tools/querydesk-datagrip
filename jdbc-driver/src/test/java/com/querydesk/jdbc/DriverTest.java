@@ -57,6 +57,11 @@ public final class DriverTest {
   private static final AtomicInteger REGISTRATIONS = new AtomicInteger();
   private static final List<String> GRANTS = new CopyOnWriteArrayList<>();
   private static int failures;
+  // the sessions API, on for sharesOneSession only, as a QueryDesk from before sessions has none
+  private static final AtomicInteger SESSIONS = new AtomicInteger(-1);
+  private static final AtomicReference<String> ENDED_SESSION = new AtomicReference<>();
+  private static final List<String> SESSION_STATEMENTS = new CopyOnWriteArrayList<>();
+  private static final List<String> CLOSED_SESSIONS = new CopyOnWriteArrayList<>();
 
   public static void main(String[] args) throws Exception {
     HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -66,11 +71,21 @@ public final class DriverTest {
       LAST_ACCEPT.set(exchange.getRequestHeaders().getFirst("accept"));
       LAST_REQUEST.set((Map<?, ?>) Json.parse(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8)));
       String accepted = ACCEPTED_TOKEN.get();
+      Object session = LAST_REQUEST.get().get("session_id");
       if (accepted != null && !("Bearer " + accepted).equals(authorization)) reply(exchange, 401, "");
+      else if (session != null && session.equals(ENDED_SESSION.get())) reply(exchange, 410, "{\"error\": \"This session has ended.\"}");
       else {
+        if (session != null) SESSION_STATEMENTS.add((String) session);
         exchange.getResponseHeaders().set("content-type", NEXT_TYPE.get());
         reply(exchange, NEXT_STATUS.get(), NEXT_BODY.get());
       }
+    });
+    server.createContext("/api/v1/querydesk/sessions", exchange -> {
+      if (SESSIONS.get() < 0) reply(exchange, 404, "");
+      else if (exchange.getRequestMethod().equals("DELETE")) {
+        CLOSED_SESSIONS.add(exchange.getRequestURI().getPath().replace("/api/v1/querydesk/sessions/", ""));
+        reply(exchange, 204, "");
+      } else reply(exchange, 201, "{\"session_id\": \"ses_" + SESSIONS.incrementAndGet() + "\"}");
     });
     String base = "http://127.0.0.1:" + server.getAddress().getPort();
     server.createContext("/.well-known/oauth-authorization-server", exchange -> reply(exchange, 200,
@@ -119,6 +134,7 @@ public final class DriverTest {
       signsInInTheBrowser(url);
       renewsThroughTheIde(url, base);
       readsMongoCatalogFromQueryDesk(url);
+      sharesOneSession(url);
     } finally {
       server.stop(0);
     }
@@ -359,6 +375,23 @@ public final class DriverTest {
     } catch (NoSuchAlgorithmException e) {
       throw new IllegalStateException(e);
     }
+  }
+
+  private static void sharesOneSession(String url) throws SQLException {
+    SESSIONS.set(0);
+    respond(200, "{\"columns\": [{\"name\": \"one\", \"type\": \"integer\"}], \"rows\": [[1]]}");
+    try (Connection connection = DriverManager.getConnection(url, "", "member-token");
+         Statement statement = connection.createStatement()) {
+      statement.executeQuery("SELECT 1").close();
+      statement.executeQuery("SELECT 1").close();
+      // QueryDesk ended it: a new session runs the statement
+      ENDED_SESSION.set("ses_1");
+      statement.executeQuery("SELECT 1").close();
+    } finally {
+      SESSIONS.set(-1);
+    }
+    check("statements ran on the connection's session, then a new one", SESSION_STATEMENTS, List.of("ses_1", "ses_1", "ses_2"));
+    check("closing the connection closes its session", CLOSED_SESSIONS, List.of("ses_2"));
   }
 
   private static void reply(HttpExchange exchange, int status, String body) throws IOException {
