@@ -67,8 +67,8 @@ public final class DriverTest {
     server.createContext("/.well-known/oauth-authorization-server", exchange -> reply(exchange, 200,
         "{\"authorization_endpoint\": \"" + base + "/oauth/authorize\", \"token_endpoint\": \"" + base
             + "/oauth/token\", \"registration_endpoint\": \"" + base + "/oauth/register\"}"));
-    server.createContext("/.well-known/oauth-protected-resource", exchange ->
-        reply(exchange, 200, "{\"resource\": \"" + base + "/mcp\"}"));
+    server.createContext("/.well-known/oauth-protected-resource/api/v1/querydesk", exchange ->
+        reply(exchange, 200, "{\"resource\": \"" + base + "/api/v1/querydesk\"}"));
     server.createContext("/oauth/register", exchange -> {
       REGISTRATIONS.incrementAndGet();
       reply(exchange, 201, "{\"client_id\": \"oc_test\"}");
@@ -249,8 +249,9 @@ public final class DriverTest {
     try (Connection connection = DriverManager.getConnection(url, "", "")) {
       check("opens the browser once", opened.get(), 1);
       check("registers the driver", REGISTRATIONS.get(), 1);
-      check("asks for QueryDesk's resource with PKCE", AUTHORIZE.get().get("code_challenge_method") + " " + AUTHORIZE.get().get("resource"),
-          "S256 " + url.replace("jdbc:querydesk://", "http://").replace("/crd_test?ssl=false", "/mcp"));
+      check("asks for QueryDesk's database client resource with PKCE",
+          AUTHORIZE.get().get("code_challenge_method") + " " + AUTHORIZE.get().get("scope") + " " + AUTHORIZE.get().get("resource"),
+          "S256 querydesk " + url.replace("jdbc:querydesk://", "http://").replace("/crd_test?ssl=false", "/api/v1/querydesk"));
       connection.createStatement().executeQuery("SELECT 1");
       check("sends the signed-in token", LAST_AUTHORIZATION.get(), "Bearer at-1");
     }

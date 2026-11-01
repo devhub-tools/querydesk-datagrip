@@ -42,6 +42,8 @@ final class BrowserSignIn implements Tokens {
   private static final Map<String, BrowserSignIn> BY_SERVER = new ConcurrentHashMap<>();
   private static final Duration SIGN_IN_TIMEOUT = Duration.ofMinutes(5);
   private static final String CALLBACK_PATH = "/callback";
+  // the scope database clients sign in with: QueryDesk shows it as a database client, not an AI app
+  private static final String SCOPE = "querydesk";
 
   interface Browser {
     void open(String url) throws IOException;
@@ -112,7 +114,7 @@ final class BrowserSignIn implements Tokens {
       query.put("redirect_uri", redirectUri);
       query.put("code_challenge", challenge(verifier));
       query.put("code_challenge_method", "S256");
-      query.put("scope", "mcp");
+      query.put("scope", SCOPE);
       query.put("resource", resource);
       query.put("state", state);
       browser.open(endpoints.get("authorization_endpoint") + "?" + encode(query));
@@ -150,7 +152,8 @@ final class BrowserSignIn implements Tokens {
   }
 
   private String resource() throws SQLException {
-    return (String) getJson("/.well-known/oauth-protected-resource").get("resource");
+    // RFC 9728: the metadata of a resource with a path sits under that path
+    return (String) getJson("/.well-known/oauth-protected-resource/api/v1/querydesk").get("resource");
   }
 
   private String register(String registrationEndpoint) throws SQLException {
@@ -161,7 +164,7 @@ final class BrowserSignIn implements Tokens {
     body.put("grant_types", List.of("authorization_code", "refresh_token"));
     body.put("response_types", List.of("code"));
     body.put("token_endpoint_auth_method", "none");
-    body.put("scope", "mcp");
+    body.put("scope", SCOPE);
 
     HttpRequest request = HttpRequest.newBuilder(URI.create(registrationEndpoint))
         .header("content-type", "application/json")

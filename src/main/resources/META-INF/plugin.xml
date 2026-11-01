@@ -1,11 +1,20 @@
 <idea-plugin>
   <id>tools.devhub.querydesk</id>
   <name>QueryDesk</name>
-  <vendor url="https://querydesk.com">QueryDesk</vendor>
+  <vendor url="https://querydesk.com" email="support@querydesk.com">QueryDesk</vendor>
   <description><![CDATA[
-    Connect to the databases you reach through QueryDesk. Each query runs in QueryDesk, with
-    your access, reviews, data protection and the audit log applied, so DataGrip never holds
-    a database password. Sign in once in your browser; the plugin keeps you signed in.
+    <p>Connect DataGrip, and any JetBrains IDE with the Database tools, to the databases you reach
+    through <a href="https://querydesk.com">QueryDesk</a>.</p>
+    <p>Every query runs in QueryDesk as you, with your access, reviews, data protection and the
+    audit log applied, so the IDE never holds a database password.</p>
+    <ul>
+      <li><b>Connect QueryDesk</b> in the Database Explorer's <b>+</b> menu signs you in in the browser
+      and adds a data source for each database credential you can use, grouped by QueryDesk group.
+      Each loads its schema the first time you open it.</li>
+      <li>Stays signed in across restarts: the refresh token is kept in the IDE's password safe.</li>
+      <li>PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.</li>
+    </ul>
+    <p>Source: <a href="https://github.com/devhub-tools/querydesk-datagrip">github.com/devhub-tools/querydesk-datagrip</a></p>
   ]]></description>
   <depends>com.intellij.modules.platform</depends>
   <depends>com.intellij.database</depends>

@@ -70,7 +70,8 @@ class QueryDeskAuth {
    */
   fun signIn(server: String): String {
     val endpoints = endpoints(server)
-    val resource = getJson("$server/.well-known/oauth-protected-resource").get("resource").asString
+    // RFC 9728: the metadata of a resource with a path sits under that path
+    val resource = getJson("$server/.well-known/oauth-protected-resource/api/v1/querydesk").get("resource").asString
     val verifier = randomUrlSafe(32)
     val state = randomUrlSafe(16)
 
@@ -84,7 +85,7 @@ class QueryDeskAuth {
         "redirect_uri" to redirectUri,
         "code_challenge" to challenge(verifier),
         "code_challenge_method" to "S256",
-        "scope" to "mcp",
+        "scope" to SCOPE,
         "resource" to resource,
         "state" to state,
       )
@@ -153,7 +154,7 @@ class QueryDeskAuth {
       "grant_types" to listOf("authorization_code", "refresh_token"),
       "response_types" to listOf("code"),
       "token_endpoint_auth_method" to "none",
-      "scope" to "mcp",
+      "scope" to SCOPE,
     )
     val request = HttpRequest.newBuilder(URI.create(registrationEndpoint))
       .header("content-type", "application/json")
@@ -194,6 +195,9 @@ class QueryDeskAuth {
 
   companion object {
     private const val CALLBACK_PATH = "/callback"
+
+    // the scope database clients sign in with: QueryDesk shows it as a database client, not an AI app
+    private const val SCOPE = "querydesk"
     private val SIGN_IN_TIMEOUT: Duration = Duration.ofMinutes(5)
 
     fun getInstance(): QueryDeskAuth = service()

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "0.1.9"
+version = "0.2.0-beta"
 
 repositories {
   mavenCentral()
@@ -26,7 +26,29 @@ kotlin {
 
 intellijPlatform {
   pluginConfiguration {
-    ideaVersion { sinceBuild = "262" }
+    // no upper bound: the verifier checks each new DataGrip before a release claims it
+    ideaVersion {
+      sinceBuild = "262"
+      untilBuild = provider { null }
+    }
+    changeNotes = """
+      <ul>
+        <li>Connect QueryDesk adds a data source for every database credential you can use, grouped by QueryDesk group.</li>
+        <li>Browser sign-in that stays signed in across restarts, with the refresh token in the IDE's password safe.</li>
+        <li>PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.</li>
+      </ul>
+    """.trimIndent()
+  }
+  // set in the release workflow from the public repo's secrets
+  signing {
+    certificateChain = providers.environmentVariable("CERTIFICATE_CHAIN")
+    privateKey = providers.environmentVariable("PRIVATE_KEY")
+    password = providers.environmentVariable("PRIVATE_KEY_PASSWORD")
+  }
+  publishing {
+    token = providers.environmentVariable("PUBLISH_TOKEN")
+    // 0.2.0-beta goes to the beta channel, 0.2.0 to the default (stable) one
+    channels = providers.provider { listOf(version.toString().substringAfter('-', "default").substringBefore('.')) }
   }
   // flags calls into DataGrip's internal or deprecated API, which can change between releases
   pluginVerification {

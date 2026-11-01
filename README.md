@@ -25,6 +25,18 @@ builds `build/distributions/querydesk-datagrip-<version>.zip`. Install it with S
 `jdbc-driver/` is the JDBC driver the plugin ships: no dependencies, Java 17, and each statement
 goes to QueryDesk over HTTPS instead of to the database. See [its README](jdbc-driver/README.md).
 
+## Release
+
+Set `version` in `build.gradle.kts`, then push a matching tag (`v0.2.0-beta`). The Release
+workflow verifies, signs and publishes to the JetBrains Marketplace: a `-beta` version goes to
+the beta channel, a plain one to the default channel. It needs these repository secrets:
+
+- `PUBLISH_TOKEN`: a JetBrains Marketplace token.
+- `CERTIFICATE_CHAIN`, `PRIVATE_KEY`, `PRIVATE_KEY_PASSWORD`: the plugin signing certificate
+  ([how to make one](https://plugins.jetbrains.com/docs/intellij/plugin-signing.html)).
+
+The Marketplace takes a new plugin's first version only through its website upload.
+
 ## Limitations
 
 - An access token lasts an hour and is handed to the driver when a connection opens, so a

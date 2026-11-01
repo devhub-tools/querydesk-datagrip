@@ -1,0 +1,32 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # the JDK and Gradle pinned in mise.toml
+      - uses: jdx/mise-action@v2
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Driver tests
+        run: jdbc-driver/test.sh
+
+      # verifyPlugin fails on any internal API use against the DataGrip in build.gradle.kts
+      - name: Build and verify the plugin
+        run: ./gradlew buildPlugin verifyPlugin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin
+          path: build/distributions/*.zip
