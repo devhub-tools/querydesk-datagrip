@@ -42,6 +42,11 @@ final class Rows implements AutoCloseable {
     return loaded.get(index);
   }
 
+  /** How many rows have been read so far, without reading more. */
+  synchronized int read() {
+    return loaded.size();
+  }
+
   /** Every row's count, which reads the rest of the stream. */
   synchronized int size() throws SQLException {
     while (stream != null) readLine();

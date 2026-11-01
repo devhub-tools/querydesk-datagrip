@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "2.46.1.1"
+version = "2.46.1.2"
 
 repositories {
   mavenCentral()
@@ -38,7 +38,8 @@ intellijPlatform {
         <li>PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB.</li>
         <li>Rows stream as QueryDesk reads them, and closing a result stops the query.</li>
         <li>A connection's statements share one held database connection in QueryDesk, so only the first waits to connect.</li>
-        <li>Versioned with QueryDesk: 2.46.1.1 follows the QueryDesk 2.46.1 release.</li>
+        <li>Introspection reads empty arrays, such as a constraint's key columns, without an error.</li>
+        <li>Versioned with QueryDesk: 2.46.1.2 follows the QueryDesk 2.46.1 release.</li>
       </ul>
     """.trimIndent()
   }

@@ -8,9 +8,18 @@ import java.util.List;
 /** An array column's value, which QueryDesk sends as a JSON list. Its elements keep their JSON types. */
 final class ArrayHandler extends Handler {
   private final List<?> elements;
+  // an empty array's element type, from the column's other values; JSON has none for it
+  private final Class<?> fallback;
 
-  ArrayHandler(List<?> elements) {
+  ArrayHandler(List<?> elements, Class<?> fallback) {
     this.elements = elements;
+    this.fallback = fallback;
+  }
+
+  /** The Java class an array's elements are given as, or null for one with no element to tell by. */
+  static Class<?> elementClass(List<?> elements) {
+    Class<?> type = elements.stream().filter(e -> e != null).findFirst().<Class<?>>map(Object::getClass).orElse(null);
+    return type == null || type == Long.class || type == Double.class || type == Boolean.class ? type : String.class;
   }
 
   @Override
@@ -36,8 +45,8 @@ final class ArrayHandler extends Handler {
 
   /** A Long[], Double[], Boolean[] or String[] like PgJDBC's: clients convert by the array's class, not its elements'. */
   private Object[] typed(List<?> slice) {
-    Class<?> type = elements.stream().filter(e -> e != null).findFirst().<Class<?>>map(Object::getClass).orElse(String.class);
-    if (type != Long.class && type != Double.class && type != Boolean.class) type = String.class;
+    Class<?> type = elementClass(elements);
+    if (type == null) type = fallback != null ? fallback : String.class;
     Object[] array = (Object[]) java.lang.reflect.Array.newInstance(type, slice.size());
     for (int i = 0; i < array.length; i++) {
       Object element = slice.get(i);

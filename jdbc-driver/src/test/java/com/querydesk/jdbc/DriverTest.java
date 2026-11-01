@@ -201,6 +201,15 @@ public final class DriverTest {
       check("array slice", Arrays.toString((Object[]) rs.getArray(1).getArray(2, 5)), "[2200, null]");
       check("array class", rs.getArray(1).getArray().getClass(), Long[].class);
     }
+
+    // an empty array has no element to tell its type by, so it takes its column's
+    respond(200, "{\"columns\": [{\"name\": \"conkey\", \"type\": \"array\"}], \"rows\": [[[]], [[1, 2]], [[]]]}");
+    try (Statement statement = connection.createStatement()) {
+      ResultSet rs = statement.executeQuery("SELECT conkey");
+      for (int i = 1; rs.next(); i++) {
+        check("empty array class, row " + i, rs.getArray(1).getArray().getClass(), Long[].class);
+      }
+    }
   }
 
   private static void returnsUpdateCounts(Connection connection) throws SQLException {

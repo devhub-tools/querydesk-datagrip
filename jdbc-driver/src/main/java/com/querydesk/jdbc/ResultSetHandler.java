@@ -20,7 +20,9 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Rows QueryDesk returned, read with each column's QueryDesk type as the caller moves through them. */
 final class ResultSetHandler extends Handler {
@@ -29,6 +31,8 @@ final class ResultSetHandler extends Handler {
   private int row = -1;
   private boolean wasNull;
   private boolean closed;
+  // each array column's element class, once a value shows it
+  private final Map<Integer, Class<?>> arrayElements = new HashMap<>();
 
   private ResultSetHandler(Result result, Statement statement) {
     this.result = result;
@@ -177,13 +181,29 @@ final class ResultSetHandler extends Handler {
         case "getBinaryStream":
           return new ByteArrayInputStream(bytes(raw, type));
         case "getArray":
-          return proxy(Array.class, new ArrayHandler((List<?>) raw));
+          return proxy(Array.class, new ArrayHandler((List<?>) raw, arrayElement(column, (List<?>) raw)));
         default:
           throw unsupported(method);
       }
     } catch (RuntimeException e) {
       throw new SQLDataException("Can't read " + type + " column " + result.names().get(column) + " with " + method.getName(), "22000", e);
     }
+  }
+
+  /**
+   * The element class of an array column, so an empty one comes back typed like the others
+   * (a client converts by the array's class): from this value, an earlier one, or a later one
+   * already read.
+   */
+  private Class<?> arrayElement(int column, List<?> value) throws SQLException {
+    Class<?> known = ArrayHandler.elementClass(value);
+    if (known == null) known = arrayElements.get(column);
+    Rows rows = result.rows();
+    for (int i = 0; known == null && i < rows.read(); i++) {
+      if (rows.get(i).get(column) instanceof List<?> other) known = ArrayHandler.elementClass(other);
+    }
+    if (known != null) arrayElements.put(column, known);
+    return known;
   }
 
   private int column(Object key) throws SQLException {
