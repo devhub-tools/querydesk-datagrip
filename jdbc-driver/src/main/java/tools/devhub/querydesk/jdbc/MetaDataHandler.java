@@ -5,22 +5,49 @@ import java.sql.Connection;
 import java.sql.DatabaseMetaData;
 import java.sql.ResultSet;
 import java.sql.RowIdLifetime;
+import java.sql.SQLException;
+import java.util.List;
 
 /**
  * Reports the database as the product and version the URL names, so a tool picks that SQL
  * dialect and reads the catalog with its own queries. The JDBC catalog methods (getTables and
- * the like) return no rows; anything else answers false, 0 or "".
+ * the like) return no rows, except for MongoDB ({@link StoredSchema}); anything else answers
+ * false, 0 or "".
  */
 final class MetaDataHandler extends Handler {
   private final ConnectionHandler connection;
+  // MongoDB has no SQL catalog for a tool's own queries, so its catalog methods read QueryDesk's
+  private final StoredSchema storedSchema;
 
   MetaDataHandler(ConnectionHandler connection) {
     this.connection = connection;
+    this.storedSchema = connection.storedSchema;
   }
 
   @Override
-  Object handle(Object self, Method method, Object[] a) {
+  Object handle(Object self, Method method, Object[] a) throws SQLException {
     String[] version = connection.version.split("\\.");
+
+    if (storedSchema != null) {
+      switch (method.getName()) {
+        case "getCatalogs":
+          return ResultSetHandler.proxy(storedSchema.catalogs(), null);
+        case "getSchemas":
+          return ResultSetHandler.proxy(storedSchema.schemas(), null);
+        case "getTables":
+          return ResultSetHandler.proxy(storedSchema.tables((String) a[0], (String) a[1], (String) a[2]), null);
+        case "getColumns":
+          return ResultSetHandler.proxy(storedSchema.columns((String) a[0], (String) a[1], (String) a[2], (String) a[3]), null);
+        case "getPrimaryKeys":
+          return ResultSetHandler.proxy(storedSchema.primaryKeys((String) a[0], (String) a[1], (String) a[2]), null);
+        case "getTableTypes":
+          return ResultSetHandler.proxy(Result.rows(List.of("TABLE_TYPE"), List.of("text"), List.of(List.of("TABLE"))), null);
+        case "getCatalogTerm":
+          return "database";
+        default:
+          break;
+      }
+    }
 
     switch (method.getName()) {
       case "getConnection":

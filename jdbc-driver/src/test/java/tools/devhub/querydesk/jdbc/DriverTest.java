@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -95,6 +96,9 @@ public final class DriverTest {
       if (valid) reply(exchange, 200, "{\"access_token\": \"at-" + issued + "\", \"refresh_token\": \"rt-" + issued + "\", \"expires_in\": 3600}");
       else reply(exchange, 400, "{\"error\": \"invalid_grant\"}");
     });
+    server.createContext("/api/v1/querydesk/credentials/crd_test/schema", exchange -> reply(exchange, 200,
+        "{\"database\": \"shop\", \"tables\": [{\"name\": \"orders\", \"columns\": [{\"name\": \"_id\", \"type\": \"objectId\", \"primary_key\": true},"
+            + " {\"name\": \"total\", \"type\": \"decimal\", \"primary_key\": false}]}, {\"name\": \"customers\", \"columns\": [{\"name\": \"address.city\", \"type\": \"null, string\", \"primary_key\": false}]}]}"));
     // the DataGrip plugin's loopback endpoint, handing out the token it renewed
     server.createContext("/ide-token", exchange -> {
       IDE_AUTHORIZATION.set(exchange.getRequestHeaders().getFirst("authorization"));
@@ -114,6 +118,7 @@ public final class DriverTest {
       reportsTheConfiguredProduct(connection);
       signsInInTheBrowser(url);
       renewsThroughTheIde(url, base);
+      readsMongoCatalogFromQueryDesk(url);
     } finally {
       server.stop(0);
     }
@@ -282,6 +287,43 @@ public final class DriverTest {
       check("without the browser", opened.get(), 1);
     } finally {
       ACCEPTED_TOKEN.set(null);
+    }
+  }
+
+  private static void readsMongoCatalogFromQueryDesk(String url) throws SQLException {
+    try (Connection connection = DriverManager.getConnection(url + "&product=MongoDB&version=8.0", "", "member-token")) {
+      DatabaseMetaData meta = connection.getMetaData();
+      ResultSet catalogs = meta.getCatalogs();
+      check("a MongoDB database is the catalog", catalogs.next() ? catalogs.getString("TABLE_CAT") : null, "shop");
+
+      ResultSet tables = meta.getTables("shop", "shop", "ord%", new String[] {"TABLE"});
+      check("collections are tables in the database's schema, by pattern",
+          tables.next() ? tables.getString("TABLE_SCHEM") + " " + tables.getString("TABLE_NAME") + " " + tables.getString("TABLE_TYPE") : null, "shop orders TABLE");
+      check("only the matching ones", tables.next(), false);
+
+      ResultSet columns = meta.getColumns(null, null, "orders", "%");
+      check("field paths are columns", columns.next() ? columns.getString("COLUMN_NAME") + " " + columns.getInt("DATA_TYPE") + " " + columns.getInt("ORDINAL_POSITION") : null, "_id " + Types.OTHER + " 1");
+      check("with their JDBC type", columns.next() ? columns.getString("TYPE_NAME") + " " + columns.getInt("DATA_TYPE") : null, "decimal " + Types.DECIMAL);
+
+      ResultSet mixed = meta.getColumns("shop", null, "customers", "address.%");
+      check("a field seen as null and string is a string", mixed.next() ? mixed.getInt("DATA_TYPE") : null, Types.VARCHAR);
+
+      ResultSet keys = meta.getPrimaryKeys("shop", null, "orders");
+      check("_id is the key", keys.next() ? keys.getString("COLUMN_NAME") : null, "_id");
+      check("another database has nothing", meta.getTables("other", null, "%", null).next(), false);
+      check("nor another schema", meta.getTables("shop", "other", "%", null).next(), false);
+
+      try (Statement statement = connection.createStatement()) {
+        respond(200, "{\"columns\": [], \"rows\": []}");
+        statement.execute("db.getSiblingDB(\"shop\").getCollection(\"customers\")\n  .find({})\n  .limit(21)");
+        check("its own database's sibling is db", LAST_REQUEST.get().get("sql"), "db.getCollection(\"customers\")\n  .find({})\n  .limit(21)");
+        statement.execute("db.getSiblingDB('admin').getCollection('users').find()");
+        check("another database's is left for QueryDesk", LAST_REQUEST.get().get("sql"), "db.getSiblingDB('admin').getCollection('users').find()");
+
+        check("use of its own database is already so", statement.execute("use shop") || statement.getUpdateCount() != 0, false);
+        check("and isn't sent", LAST_REQUEST.get().get("sql"), "db.getSiblingDB('admin').getCollection('users').find()");
+        check("use of another is refused", expect("another database", SQLException.class, () -> statement.execute("use admin")).getSQLState(), "3D000");
+      }
     }
   }
 

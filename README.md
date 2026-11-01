@@ -8,13 +8,18 @@ database password.
 - **Connect QueryDesk**, in the Database Explorer's `+` menu (Tools → QueryDesk in IntelliJ IDEs),
   signs in in the browser and adds a data source for every database credential you can use,
   grouped under `QueryDesk/<group>`. Each one loads its schema the first time you open it.
+- **Stays current**: databases you gain or lose in QueryDesk (a PR environment's, say) are added
+  or removed on their own, at startup, every 5 minutes and when you switch back to the IDE. Only a
+  signed-in IDE checks, and it never opens the browser.
 - **Sign-in**: OAuth in the browser with PKCE. The refresh token is kept in the IDE's password
   safe (Keychain, Windows Credential Manager, or libsecret/KeePass), so you stay signed in across
   restarts. Each connection gets a fresh access token, and the driver renews it through the IDE
   when it expires, so a connection held open for hours keeps working.
 - Rows stream as QueryDesk reads them: the first page shows without waiting for the rest, and
   closing a result stops its query.
-- One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle and ClickHouse.
+- One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB. MongoDB's
+  console takes the mongosh syntax QueryDesk runs, and its collections and fields come from the
+  schema QueryDesk last synced.
 
 ## Build
 

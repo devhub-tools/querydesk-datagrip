@@ -26,8 +26,11 @@ final class Client {
   private final String credentialId;
   private final Tokens tokens;
 
+  private final URI schemaEndpoint;
+
   Client(String baseUrl, String credentialId, Tokens tokens) {
     this.endpoint = URI.create(baseUrl + "/api/v1/querydesk/statements");
+    this.schemaEndpoint = URI.create(baseUrl + "/api/v1/querydesk/credentials/" + credentialId + "/schema");
     this.credentialId = credentialId;
     this.tokens = tokens;
   }
@@ -67,6 +70,30 @@ final class Client {
     return toResult(json);
   }
 
+  /** The credential's database schema as QueryDesk last synced it: its name and tables with their columns. */
+  Map<?, ?> schema() throws SQLException {
+    String token = tokens.current();
+    HttpResponse<InputStream> response = get(schemaEndpoint, token);
+    if (response.statusCode() == 401 && tokens.renew(token)) {
+      closeQuietly(response.body());
+      response = get(schemaEndpoint, tokens.current());
+    }
+    int status = response.statusCode();
+    Map<?, ?> json = parseObject(readAll(response.body()), status);
+    if (status != 200) throw new SQLException("QueryDesk answered " + status + " for the schema: " + json.get("error"), "08006");
+    return json;
+  }
+
+  private HttpResponse<InputStream> get(URI uri, String token) throws SQLException {
+    HttpRequest request = HttpRequest.newBuilder(uri)
+        .header("authorization", "Bearer " + token)
+        .header("accept", "application/json")
+        .timeout(Duration.ofMinutes(1))
+        .GET()
+        .build();
+    return send(request);
+  }
+
   /**
    * One statement's rows as QueryDesk reads them: a line naming the columns (or a write's
    * count), a line per chunk of rows, then done. Only the first line is read here.
@@ -99,15 +126,17 @@ final class Client {
   }
 
   private HttpResponse<InputStream> send(String json, String token) throws SQLException {
-    HttpRequest request = HttpRequest.newBuilder(endpoint)
+    return send(HttpRequest.newBuilder(endpoint)
         .header("authorization", "Bearer " + token)
         .header("content-type", "application/json")
         // a statement's rows stream back as they're read; several statements come back whole
         .header("accept", "application/x-ndjson, application/json")
         .timeout(Duration.ofMinutes(10))
         .POST(HttpRequest.BodyPublishers.ofString(json))
-        .build();
+        .build());
+  }
 
+  private HttpResponse<InputStream> send(HttpRequest request) throws SQLException {
     try {
       return http.send(request, HttpResponse.BodyHandlers.ofInputStream());
     } catch (IOException e) {

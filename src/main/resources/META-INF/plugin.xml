@@ -21,6 +21,7 @@
 
   <extensions defaultExtensionNs="com.intellij">
     <postStartupActivity implementation="tools.devhub.querydesk.datagrip.RegisterDriverJar"/>
+    <postStartupActivity implementation="tools.devhub.querydesk.datagrip.QueryDeskSync$Start"/>
     <notificationGroup id="QueryDesk" displayType="BALLOON"/>
   </extensions>
 
@@ -28,6 +29,11 @@
     <driversConfig config="databaseDrivers/querydesk-drivers.xml"/>
     <connectionInterceptor implementation="tools.devhub.querydesk.datagrip.QueryDeskAuthProvider"/>
   </extensions>
+
+  <applicationListeners>
+    <listener class="tools.devhub.querydesk.datagrip.QueryDeskSync$OnActivation"
+              topic="com.intellij.openapi.application.ApplicationActivationListener"/>
+  </applicationListeners>
 
   <actions>
     <group id="QueryDesk.Tools" text="QueryDesk" popup="true">

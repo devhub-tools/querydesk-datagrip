@@ -18,6 +18,8 @@ final class ConnectionHandler extends Handler {
   final String url;
   final String product;
   final String version;
+  // MongoDB's catalog, read from QueryDesk once per connection; null for SQL engines
+  final StoredSchema storedSchema;
   private final Connection proxy;
   private boolean closed;
 
@@ -26,6 +28,7 @@ final class ConnectionHandler extends Handler {
     this.url = url;
     this.product = product;
     this.version = version;
+    this.storedSchema = "MongoDB".equals(product) ? new StoredSchema(client) : null;
     this.proxy = proxy(Connection.class, this);
   }
 

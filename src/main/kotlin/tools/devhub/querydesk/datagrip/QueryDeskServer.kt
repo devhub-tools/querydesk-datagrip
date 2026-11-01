@@ -13,6 +13,7 @@ object QueryDeskServer {
     "sqlserver" to ("Microsoft SQL Server" to "16.0"),
     "oracle" to ("Oracle" to "19.0"),
     "clickhouse" to ("ClickHouse" to "24.0"),
+    "mongodb" to ("MongoDB" to "8.0"),
   )
 
   fun supports(adapter: String) = adapter in PRODUCTS
@@ -31,6 +32,9 @@ object QueryDeskServer {
     val port = if (uri.port == -1) "" else ":${uri.port}"
     return "$URL_PREFIX//${uri.host}$port/$credentialId?${params.joinToString("&")}"
   }
+
+  /** The credential a QueryDesk JDBC URL connects with. */
+  fun credentialOf(jdbcUrl: String): String = URI.create(jdbcUrl.removePrefix(URL_PREFIX)).path.removePrefix("/")
 
   /** The QueryDesk server a QueryDesk JDBC URL points at, which is where its token comes from. */
   fun serverOf(jdbcUrl: String): String {

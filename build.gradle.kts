@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "0.2.2-beta"
+version = "0.3.4-beta"
 
 repositories {
   mavenCentral()

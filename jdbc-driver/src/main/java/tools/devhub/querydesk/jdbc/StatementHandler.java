@@ -143,6 +143,12 @@ final class StatementHandler extends Handler {
 
   private void run(String sql) throws SQLException {
     closeResult();
+    if (connection.storedSchema != null && connection.storedSchema.isUse(sql)) {
+      resultSet = null;
+      updateCount = 0;
+      return;
+    }
+    if (connection.storedSchema != null) sql = connection.storedSchema.ownDatabase(sql);
     Result result = connection.client.execute(sql, maxRows);
     if (result.hasRows()) {
       resultSet = ResultSetHandler.proxy(result, proxy);

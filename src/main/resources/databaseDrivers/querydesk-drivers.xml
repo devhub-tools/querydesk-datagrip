@@ -16,4 +16,8 @@
   <driver id="querydesk-clickhouse" name="QueryDesk (ClickHouse)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="ClickHouse">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
+  <!-- the console speaks mongosh, which QueryDesk reads; the catalog comes from QueryDesk's stored schema -->
+  <driver id="querydesk-mongodb" name="QueryDesk (MongoDB)" driver-class="tools.devhub.querydesk.jdbc.QueryDeskDriver" dialect="MongoJS">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
 </drivers>
