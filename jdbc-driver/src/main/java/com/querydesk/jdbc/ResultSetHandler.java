@@ -33,6 +33,8 @@ final class ResultSetHandler extends Handler {
   private boolean closed;
   // each array column's element class, once a value shows it
   private final Map<Integer, Class<?>> arrayElements = new HashMap<>();
+  // whether the engine writes an array as Postgres does, read from the connection when first needed
+  private Boolean postgresArrays;
 
   private ResultSetHandler(Result result, Statement statement) {
     this.result = result;
@@ -147,7 +149,7 @@ final class ResultSetHandler extends Handler {
           return natural(raw, type);
         case "getString":
         case "getNString":
-          return text(raw, type);
+          return string(raw, type);
         case "getBoolean":
           if (raw instanceof Boolean b) return b;
           if (raw instanceof Number n) return n.doubleValue() != 0;
@@ -176,7 +178,7 @@ final class ResultSetHandler extends Handler {
           return timestamp(raw, type);
         case "getCharacterStream":
         case "getNCharacterStream":
-          return new StringReader(text(raw, type));
+          return new StringReader(string(raw, type));
         case "getAsciiStream":
         case "getBinaryStream":
           return new ByteArrayInputStream(bytes(raw, type));
@@ -255,6 +257,40 @@ final class ResultSetHandler extends Handler {
     Object natural = natural(raw, type);
     if (target.isInstance(natural)) return natural;
     throw new SQLDataException("Can't read a " + type + " value as " + target.getName(), "22000");
+  }
+
+  // An array as text in its engine's own form: {1,2} on the Postgres family, which a tool parses
+  // from getString (DataGrip reads a key's column positions so), and JSON's [1,2] elsewhere.
+  private String string(Object raw, String type) throws SQLException {
+    return raw instanceof List<?> list && postgresArrays() ? postgresArray(list) : text(raw, type);
+  }
+
+  private boolean postgresArrays() throws SQLException {
+    if (postgresArrays == null) {
+      String product = statement == null ? null : statement.getConnection().getMetaData().getDatabaseProductName();
+      postgresArrays = "PostgreSQL".equals(product) || "Redshift".equals(product);
+    }
+    return postgresArrays;
+  }
+
+  // Postgres's array literal: NULL unquoted, an element quoted when it is empty, NULL, or holds a
+  // delimiter, brace, quote, backslash or space
+  static String postgresArray(List<?> list) {
+    StringBuilder out = new StringBuilder("{");
+    for (int i = 0; i < list.size(); i++) {
+      if (i > 0) out.append(',');
+      Object element = list.get(i);
+      if (element == null) out.append("NULL");
+      else if (element instanceof List<?> nested) out.append(postgresArray(nested));
+      else if (element instanceof Boolean b) out.append(b ? 't' : 'f');
+      else if (element instanceof Number) out.append(element);
+      else {
+        String text = element instanceof String s ? s : Json.write(element);
+        boolean quote = text.isEmpty() || text.equalsIgnoreCase("NULL") || text.chars().anyMatch(c -> "{},\"\\ ".indexOf(c) >= 0 || Character.isWhitespace(c));
+        out.append(quote ? '"' + text.replace("\\", "\\\\").replace("\"", "\\\"") + '"' : text);
+      }
+    }
+    return out.append('}').toString();
   }
 
   static String text(Object raw, String type) {

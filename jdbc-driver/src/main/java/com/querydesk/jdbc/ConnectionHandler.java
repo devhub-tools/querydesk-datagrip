@@ -18,17 +18,23 @@ final class ConnectionHandler extends Handler {
   final String url;
   final String product;
   final String version;
-  // MongoDB's catalog, read from QueryDesk once per connection; null for SQL engines
+  // QueryDesk's name for the engine (doris), which the DataGrip plugin passes; null from other tools
+  final String engine;
+  // the catalog as QueryDesk last synced it, read once per connection
   final StoredSchema storedSchema;
+  // mongosh rather than SQL, whose own database's db.getSiblingDB and use are rewritten
+  final boolean mongo;
   private final Connection proxy;
   private boolean closed;
 
-  ConnectionHandler(Client client, String url, String product, String version) {
+  ConnectionHandler(Client client, String url, String product, String version, String engine) {
     this.client = client;
     this.url = url;
     this.product = product;
     this.version = version;
-    this.storedSchema = "MongoDB".equals(product) ? new StoredSchema(client) : null;
+    this.engine = engine;
+    this.mongo = "MongoDB".equals(product);
+    this.storedSchema = new StoredSchema(client, product);
     this.proxy = proxy(Connection.class, this);
   }
 
@@ -85,9 +91,12 @@ final class ConnectionHandler extends Handler {
         return 0;
       case "nativeSQL":
         return a[0];
-      // each statement is sent alone, so there is no session for these to change
+      // the database and schema a statement runs in, which a tool selects to introspect by default
       case "getCatalog":
+        return storedSchema.catalog();
       case "getSchema":
+        return storedSchema.currentSchema();
+      // each statement is sent alone, so there is no session for these to change
       case "getWarnings":
       case "setReadOnly":
       case "setCatalog":

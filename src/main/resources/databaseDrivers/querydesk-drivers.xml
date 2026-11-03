@@ -20,4 +20,32 @@
   <driver id="querydesk-mongodb" name="QueryDesk (MongoDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MongoJS">
     <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
   </driver>
+  <!-- engines with no DataGrip dialect of their own take their wire protocol's -->
+  <driver id="querydesk-cockroachdb" name="QueryDesk (CockroachDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="Cockroach">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-timescaledb" name="QueryDesk (TimescaleDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="PostgreSQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-alloydb" name="QueryDesk (Google AlloyDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="PostgreSQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-redshift" name="QueryDesk (Amazon Redshift)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="Redshift">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-mariadb" name="QueryDesk (MariaDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MariaDB">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-tidb" name="QueryDesk (TiDB)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-oceanbase" name="QueryDesk (OceanBase)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-starrocks" name="QueryDesk (StarRocks)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
+  <driver id="querydesk-doris" name="QueryDesk (Apache Doris)" driver-class="com.querydesk.jdbc.QueryDeskDriver" dialect="MySQL">
+    <url-template name="default" template="jdbc:querydesk://{host::app.querydesk.com}[:{port}]/{database}[\?&lt;&amp;,{:identifier}={:param}&gt;]"/>
+  </driver>
 </drivers>

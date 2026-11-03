@@ -24,12 +24,13 @@ import java.util.logging.Logger;
  * in in the browser; a QueryDesk token as the password is used as it is. {@code ssl=false} talks
  * plain HTTP, for a local server. {@code product} and {@code version} set what the driver
  * reports the database to be (PostgreSQL 16 by default), which tools read to pick their SQL
- * dialect.
+ * dialect. {@code engine} is QueryDesk's name for it, so the driver can answer a tool's probe the
+ * engine can't run ({@link ToolProbes}).
  */
 public final class QueryDeskDriver implements Driver {
   static final String PREFIX = "jdbc:querydesk:";
-  static final int MAJOR_VERSION = 2;
-  static final int MINOR_VERSION = 46;
+  static final int MAJOR_VERSION = 3;
+  static final int MINOR_VERSION = 0;
 
   static {
     try {
@@ -79,7 +80,8 @@ public final class QueryDeskDriver implements Driver {
     Client client = new Client(baseUrl, credentialId, tokens);
 
     return new ConnectionHandler(
-        client, url, params.getOrDefault("product", "PostgreSQL"), params.getOrDefault("version", "16.0")).proxy();
+        client, url, params.getOrDefault("product", "PostgreSQL"), params.getOrDefault("version", "16.0"), params.get("engine"))
+        .proxy();
   }
 
   @Override

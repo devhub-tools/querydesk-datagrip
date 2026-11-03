@@ -7,14 +7,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * JDBC's catalog methods answered from the schema QueryDesk last synced, for MongoDB, which
- * has no SQL catalog a tool can query. The database is both the catalog and the schema, as
- * DataGrip asks for it, each collection a table and each field path (address.city) a column.
- * Read once per connection.
+ * JDBC's catalog methods answered from the schema QueryDesk last synced: for MongoDB, which has
+ * no SQL catalog a tool can query, and for an engine a tool reads through JDBC rather than its
+ * own SQL. The database is the catalog. On the Postgres family and SQL Server a table's schema
+ * is its qualifier (billing.invoices), bare names in public or dbo; elsewhere the database is the
+ * schema too, as DataGrip asks for it. A MongoDB collection is a table and each field path
+ * (address.city) a column. Read once per connection.
  */
 final class StoredSchema {
   private static final List<String> TABLE_COLUMNS = List.of(
@@ -32,10 +36,27 @@ final class StoredSchema {
   private static final Pattern USE = Pattern.compile("\\s*use\\s+([^\\s;]+)\\s*;?\\s*");
 
   private final Client client;
+  private final boolean mongo;
+  // the schema of a bare table name where qualifiers are schemas, null where the database is
+  private final String defaultSchema;
   private Map<?, ?> schema;
 
-  StoredSchema(Client client) {
+  StoredSchema(Client client, String product) {
     this.client = client;
+    this.mongo = "MongoDB".equals(product);
+    this.defaultSchema = switch (product) {
+      case "PostgreSQL", "Redshift" -> "public";
+      case "Microsoft SQL Server" -> "dbo";
+      default -> null;
+    };
+  }
+
+  String catalog() throws SQLException {
+    return database();
+  }
+
+  String currentSchema() throws SQLException {
+    return defaultSchema == null ? database() : defaultSchema;
   }
 
   Result catalogs() throws SQLException {
@@ -43,15 +64,23 @@ final class StoredSchema {
   }
 
   Result schemas() throws SQLException {
-    return rows(List.of("TABLE_SCHEM", "TABLE_CATALOG"), List.of(List.of(database(), database())));
+    Set<String> schemas = new TreeSet<>();
+    if (defaultSchema == null) schemas.add(database());
+    else {
+      schemas.add(defaultSchema);
+      for (Map<?, ?> table : tables()) schemas.add(schemaOf((String) table.get("name")));
+    }
+    List<List<Object>> rows = new ArrayList<>();
+    for (String schema : schemas) rows.add(List.of(schema, database()));
+    return rows(List.of("TABLE_SCHEM", "TABLE_CATALOG"), rows);
   }
 
   Result tables(String catalog, String schemaPattern, String tablePattern) throws SQLException {
     List<List<Object>> rows = new ArrayList<>();
-    if (inDatabase(catalog, schemaPattern)) {
-      for (Map<?, ?> table : tables()) {
-        String name = (String) table.get("name");
-        if (matches(tablePattern, name)) rows.add(Arrays.asList(database(), database(), name, "TABLE", null, null, null, null, null, null));
+    for (Map<?, ?> table : tables()) {
+      String stored = (String) table.get("name");
+      if (inSchema(catalog, schemaPattern, stored) && matches(tablePattern, nameOf(stored))) {
+        rows.add(Arrays.asList(database(), schemaOf(stored), nameOf(stored), "TABLE", null, null, null, null, null, null));
       }
     }
     return rows(TABLE_COLUMNS, rows);
@@ -59,21 +88,19 @@ final class StoredSchema {
 
   Result columns(String catalog, String schemaPattern, String tablePattern, String columnPattern) throws SQLException {
     List<List<Object>> rows = new ArrayList<>();
-    if (inDatabase(catalog, schemaPattern)) {
-      for (Map<?, ?> table : tables()) {
-        String tableName = (String) table.get("name");
-        if (!matches(tablePattern, tableName)) continue;
-        long position = 0;
-        for (Object entry : (List<?>) table.get("columns")) {
-          Map<?, ?> column = (Map<?, ?>) entry;
-          String name = (String) column.get("name");
-          position++;
-          if (!matches(columnPattern, name)) continue;
-          String type = String.valueOf(column.get("type"));
-          rows.add(Arrays.asList(database(), database(), tableName, name, (long) sqlType(type), type, null, null, null, null,
-              (long) DatabaseMetaData.columnNullable, null, null, null, null, null, position, "YES", null, null, null,
-              null, "NO", "NO"));
-        }
+    for (Map<?, ?> table : tables()) {
+      String stored = (String) table.get("name");
+      if (!inSchema(catalog, schemaPattern, stored) || !matches(tablePattern, nameOf(stored))) continue;
+      long position = 0;
+      for (Object entry : (List<?>) table.get("columns")) {
+        Map<?, ?> column = (Map<?, ?>) entry;
+        String name = (String) column.get("name");
+        position++;
+        if (!matches(columnPattern, name)) continue;
+        String type = String.valueOf(column.get("type"));
+        rows.add(Arrays.asList(database(), schemaOf(stored), nameOf(stored), name, (long) sqlType(type), type, null, null, null,
+            null, (long) DatabaseMetaData.columnNullable, null, null, null, null, null, position, "YES", null, null, null,
+            null, "NO", "NO"));
       }
     }
     return rows(COLUMN_COLUMNS, rows);
@@ -81,15 +108,14 @@ final class StoredSchema {
 
   Result primaryKeys(String catalog, String schema, String table) throws SQLException {
     List<List<Object>> rows = new ArrayList<>();
-    if (inDatabase(catalog, schema)) {
-      for (Map<?, ?> stored : tables()) {
-        if (!stored.get("name").equals(table)) continue;
-        long sequence = 0;
-        for (Object entry : (List<?>) stored.get("columns")) {
-          Map<?, ?> column = (Map<?, ?>) entry;
-          if (Boolean.TRUE.equals(column.get("primary_key"))) {
-            rows.add(Arrays.asList(database(), database(), table, column.get("name"), ++sequence, "_id_"));
-          }
+    for (Map<?, ?> stored : tables()) {
+      String name = (String) stored.get("name");
+      if (!inSchema(catalog, schema, name) || !nameOf(name).equals(table)) continue;
+      long sequence = 0;
+      for (Object entry : (List<?>) stored.get("columns")) {
+        Map<?, ?> column = (Map<?, ?>) entry;
+        if (Boolean.TRUE.equals(column.get("primary_key"))) {
+          rows.add(Arrays.asList(database(), schemaOf(name), table, column.get("name"), ++sequence, mongo ? "_id_" : table + "_pkey"));
         }
       }
     }
@@ -135,8 +161,20 @@ final class StoredSchema {
     return schema;
   }
 
-  private boolean inDatabase(String catalog, String schemaPattern) throws SQLException {
-    return (catalog == null || catalog.equals(database())) && matches(schemaPattern, database());
+  private boolean inSchema(String catalog, String schemaPattern, String stored) throws SQLException {
+    return (catalog == null || catalog.equals(database())) && matches(schemaPattern, schemaOf(stored));
+  }
+
+  // billing.invoices is in billing where qualifiers are schemas; a bare name in the default one
+  private String schemaOf(String stored) throws SQLException {
+    if (defaultSchema == null) return database();
+    int dot = stored.indexOf('.');
+    return dot < 0 ? defaultSchema : stored.substring(0, dot);
+  }
+
+  private String nameOf(String stored) {
+    int dot = stored.indexOf('.');
+    return defaultSchema == null || dot < 0 ? stored : stored.substring(dot + 1);
   }
 
   // a JDBC pattern: % is any run of characters, _ any one, and null matches everything
@@ -153,7 +191,7 @@ final class StoredSchema {
     return name.matches(regex.toString());
   }
 
-  // QueryDesk's names for BSON types; a field seen with several ("null, string") takes its first non-null one
+  // QueryDesk's names for BSON types, or a SQL engine's own; a field seen with several ("null, string") takes its first non-null one
   private static int sqlType(String types) {
     String type = Arrays.stream(types.split(",\\s*")).filter(t -> !t.equals("null")).findFirst().orElse("null");
     switch (type) {
@@ -175,8 +213,20 @@ final class StoredSchema {
       case "binData":
         return Types.BINARY;
       default:
-        return Types.OTHER;
+        return sqlEngineType(type.toLowerCase());
     }
+  }
+
+  // a SQL engine's type name, by its family: int4, bigint, varchar(100), timestamp with time zone
+  private static int sqlEngineType(String type) {
+    if (type.startsWith("bool") || type.equals("bit")) return Types.BOOLEAN;
+    if (type.contains("int")) return type.startsWith("big") || type.equals("int8") ? Types.BIGINT : Types.INTEGER;
+    if (type.startsWith("numeric") || type.startsWith("decimal") || type.startsWith("number")) return Types.DECIMAL;
+    if (type.startsWith("double") || type.startsWith("float") || type.equals("real")) return Types.DOUBLE;
+    if (type.startsWith("timestamp") || type.startsWith("datetime")) return Types.TIMESTAMP;
+    if (type.equals("date")) return Types.DATE;
+    if (type.contains("char") || type.contains("text") || type.startsWith("string") || type.equals("uuid")) return Types.VARCHAR;
+    return Types.OTHER;
   }
 
   // a column holding numbers reads as integer, the rest as text

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "tools.devhub.querydesk"
-version = "2.46.1.2"
+version = "3.0.0"
 
 repositories {
   mavenCentral()
@@ -33,13 +33,11 @@ intellijPlatform {
     }
     changeNotes = """
       <ul>
-        <li>Connect QueryDesk adds a data source for every database credential you can use, grouped by QueryDesk group, and keeps the list current as databases come and go.</li>
-        <li>Browser sign-in that stays signed in across restarts, with the access token renewed without signing you out.</li>
-        <li>PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB.</li>
-        <li>Rows stream as QueryDesk reads them, and closing a result stops the query.</li>
-        <li>A connection's statements share one held database connection in QueryDesk, so only the first waits to connect.</li>
-        <li>Introspection reads empty arrays, such as a constraint's key columns, without an error.</li>
-        <li>Versioned with QueryDesk: 2.46.1.2 follows the QueryDesk 2.46.1 release.</li>
+        <li>Connect QueryDesk adds data sources for CockroachDB, TimescaleDB, Google AlloyDB, Amazon Redshift, MariaDB, TiDB, OceanBase, StarRocks and Apache Doris, which it skipped before.</li>
+        <li>CockroachDB and OceanBase data sources show their tables.</li>
+        <li>Doris, TiDB and StarRocks connect without introspection warnings.</li>
+        <li>Existing data sources pick up these fixes on the next sync.</li>
+        <li>Versioned with QueryDesk: 3.0.0 follows the QueryDesk 3.0.0 release.</li>
       </ul>
     """.trimIndent()
   }

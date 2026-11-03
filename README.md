@@ -17,7 +17,12 @@ database password.
   when it expires, so a connection held open for hours keeps working.
 - Rows stream as QueryDesk reads them: the first page shows without waiting for the rest, and
   closing a result stops its query.
-- One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse and MongoDB. MongoDB's
+- One driver per engine: PostgreSQL, MySQL, SQL Server, Oracle, ClickHouse, MongoDB, CockroachDB,
+  TimescaleDB, Google AlloyDB, Amazon Redshift, MariaDB, TiDB, OceanBase, StarRocks and Apache Doris.
+  CockroachDB, Redshift and MariaDB use DataGrip's own dialects; the rest take PostgreSQL's or
+  MySQL's, whose protocol they speak. DataGrip reads CockroachDB's and OceanBase's catalog through
+  JDBC once their version names them, which the driver answers from the schema QueryDesk last
+  synced. MongoDB's
   console takes the mongosh syntax QueryDesk runs, and its collections and fields come from the
   schema QueryDesk last synced.
 

@@ -11,12 +11,12 @@ import java.util.List;
 /**
  * Reports the database as the product and version the URL names, so a tool picks that SQL
  * dialect and reads the catalog with its own queries. The JDBC catalog methods (getTables and
- * the like) return no rows, except for MongoDB ({@link StoredSchema}); anything else answers
- * false, 0 or "".
+ * the like) answer from the schema QueryDesk last synced ({@link StoredSchema}), for MongoDB and
+ * for an engine a tool recognizes by its version but reads through JDBC (DataGrip's CockroachDB
+ * and OceanBase); anything else answers false, 0 or "".
  */
 final class MetaDataHandler extends Handler {
   private final ConnectionHandler connection;
-  // MongoDB has no SQL catalog for a tool's own queries, so its catalog methods read QueryDesk's
   private final StoredSchema storedSchema;
 
   MetaDataHandler(ConnectionHandler connection) {
@@ -28,25 +28,21 @@ final class MetaDataHandler extends Handler {
   Object handle(Object self, Method method, Object[] a) throws SQLException {
     String[] version = connection.version.split("\\.");
 
-    if (storedSchema != null) {
-      switch (method.getName()) {
-        case "getCatalogs":
-          return ResultSetHandler.proxy(storedSchema.catalogs(), null);
-        case "getSchemas":
-          return ResultSetHandler.proxy(storedSchema.schemas(), null);
-        case "getTables":
-          return ResultSetHandler.proxy(storedSchema.tables((String) a[0], (String) a[1], (String) a[2]), null);
-        case "getColumns":
-          return ResultSetHandler.proxy(storedSchema.columns((String) a[0], (String) a[1], (String) a[2], (String) a[3]), null);
-        case "getPrimaryKeys":
-          return ResultSetHandler.proxy(storedSchema.primaryKeys((String) a[0], (String) a[1], (String) a[2]), null);
-        case "getTableTypes":
-          return ResultSetHandler.proxy(Result.rows(List.of("TABLE_TYPE"), List.of("text"), List.of(List.of("TABLE"))), null);
-        case "getCatalogTerm":
-          return "database";
-        default:
-          break;
-      }
+    switch (method.getName()) {
+      case "getCatalogs":
+        return ResultSetHandler.proxy(storedSchema.catalogs(), null);
+      case "getSchemas":
+        return ResultSetHandler.proxy(storedSchema.schemas(), null);
+      case "getTables":
+        return ResultSetHandler.proxy(storedSchema.tables((String) a[0], (String) a[1], (String) a[2]), null);
+      case "getColumns":
+        return ResultSetHandler.proxy(storedSchema.columns((String) a[0], (String) a[1], (String) a[2], (String) a[3]), null);
+      case "getPrimaryKeys":
+        return ResultSetHandler.proxy(storedSchema.primaryKeys((String) a[0], (String) a[1], (String) a[2]), null);
+      case "getTableTypes":
+        return ResultSetHandler.proxy(Result.rows(List.of("TABLE_TYPE"), List.of("text"), List.of(List.of("TABLE"))), null);
+      default:
+        break;
     }
 
     switch (method.getName()) {

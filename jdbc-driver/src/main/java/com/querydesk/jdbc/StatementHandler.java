@@ -143,12 +143,18 @@ final class StatementHandler extends Handler {
 
   private void run(String sql) throws SQLException {
     closeResult();
-    if (connection.storedSchema != null && connection.storedSchema.isUse(sql)) {
+    Result probe = ToolProbes.answer(connection.engine, sql);
+    if (probe != null) {
+      resultSet = ResultSetHandler.proxy(probe, proxy);
+      updateCount = -1;
+      return;
+    }
+    if (connection.mongo && connection.storedSchema.isUse(sql)) {
       resultSet = null;
       updateCount = 0;
       return;
     }
-    if (connection.storedSchema != null) sql = connection.storedSchema.ownDatabase(sql);
+    if (connection.mongo) sql = connection.storedSchema.ownDatabase(sql);
     Result result = connection.client.execute(sql, maxRows);
     if (result.hasRows()) {
       resultSet = ResultSetHandler.proxy(result, proxy);

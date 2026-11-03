@@ -114,6 +114,9 @@ public final class DriverTest {
     server.createContext("/api/v1/querydesk/credentials/crd_test/schema", exchange -> reply(exchange, 200,
         "{\"database\": \"shop\", \"tables\": [{\"name\": \"orders\", \"columns\": [{\"name\": \"_id\", \"type\": \"objectId\", \"primary_key\": true},"
             + " {\"name\": \"total\", \"type\": \"decimal\", \"primary_key\": false}]}, {\"name\": \"customers\", \"columns\": [{\"name\": \"address.city\", \"type\": \"null, string\", \"primary_key\": false}]}]}"));
+    server.createContext("/api/v1/querydesk/credentials/crd_sql/schema", exchange -> reply(exchange, 200,
+        "{\"database\": \"qa\", \"tables\": [{\"name\": \"billing.invoices\", \"columns\": [{\"name\": \"id\", \"type\": \"bigint\", \"primary_key\": true}]},"
+            + " {\"name\": \"orders\", \"columns\": [{\"name\": \"email\", \"type\": \"character varying\", \"primary_key\": false}]}]}"));
     // the DataGrip plugin's loopback endpoint, handing out the token it renewed
     server.createContext("/ide-token", exchange -> {
       IDE_AUTHORIZATION.set(exchange.getRequestHeaders().getFirst("authorization"));
@@ -134,6 +137,8 @@ public final class DriverTest {
       signsInInTheBrowser(url);
       renewsThroughTheIde(url, base);
       readsMongoCatalogFromQueryDesk(url);
+      readsSqlCatalogFromQueryDesk(url.replace("/crd_test", "/crd_sql"));
+      answersProbesTheEngineCantRun(url);
       sharesOneSession(url);
     } finally {
       server.stop(0);
@@ -200,6 +205,14 @@ public final class DriverTest {
       check("array base type", rs.getArray(1).getBaseType(), Types.BIGINT);
       check("array slice", Arrays.toString((Object[]) rs.getArray(1).getArray(2, 5)), "[2200, null]");
       check("array class", rs.getArray(1).getArray().getClass(), Long[].class);
+      check("array text, as Postgres writes it", rs.getString(1), "{11,2200,NULL}");
+    }
+
+    respond(200, "{\"columns\": [{\"name\": \"names\", \"type\": \"array\"}], \"rows\": [[[\"a\", \"b c\", \"\", \"q\\\"x\"]]]}");
+    try (Statement statement = connection.createStatement()) {
+      ResultSet rs = statement.executeQuery("SELECT names");
+      rs.next();
+      check("array text quotes as Postgres does", rs.getString(1), "{a,\"b c\",\"\",\"q\\\"x\"}");
     }
 
     // an empty array has no element to tell its type by, so it takes its column's
@@ -266,7 +279,8 @@ public final class DriverTest {
   private static void reportsTheConfiguredProduct(Connection connection) throws SQLException {
     check("product", connection.getMetaData().getDatabaseProductName(), "PostgreSQL");
     check("major version", connection.getMetaData().getDatabaseMajorVersion(), 16);
-    check("catalog methods return no rows", connection.getMetaData().getTables(null, null, "%", null).next(), false);
+    ResultSet tables = connection.getMetaData().getTables(null, null, "%", null);
+    check("catalog methods read QueryDesk's schema", tables.next() ? tables.getString("TABLE_NAME") : null, "orders");
   }
 
   private static void signsInInTheBrowser(String url) throws Exception {
@@ -349,6 +363,55 @@ public final class DriverTest {
         check("and isn't sent", LAST_REQUEST.get().get("sql"), "db.getSiblingDB('admin').getCollection('users').find()");
         check("use of another is refused", expect("another database", SQLException.class, () -> statement.execute("use admin")).getSQLState(), "3D000");
       }
+    }
+  }
+
+  // DataGrip reads CockroachDB's and OceanBase's catalog through JDBC once their version names them
+  private static void readsSqlCatalogFromQueryDesk(String url) throws SQLException {
+    try (Connection connection = DriverManager.getConnection(url + "&product=PostgreSQL&version=13.0", "", "member-token")) {
+      DatabaseMetaData meta = connection.getMetaData();
+      ResultSet schemas = meta.getSchemas();
+      check("a qualifier is a schema, beside public",
+          (schemas.next() ? schemas.getString("TABLE_SCHEM") : null) + " " + (schemas.next() ? schemas.getString("TABLE_SCHEM") : null), "billing public");
+
+      ResultSet billing = meta.getTables("qa", "billing", "%", null);
+      check("a qualified table is in its schema", billing.next() ? billing.getString("TABLE_SCHEM") + " " + billing.getString("TABLE_NAME") : null, "billing invoices");
+      check("and only it", billing.next(), false);
+
+      ResultSet columns = meta.getColumns(null, "public", "orders", "%");
+      check("a bare table's columns are in public", columns.next() ? columns.getString("COLUMN_NAME") + " " + columns.getInt("DATA_TYPE") : null, "email " + Types.VARCHAR);
+
+      check("a connection is in the database's default schema", connection.getCatalog() + " " + connection.getSchema(), "qa public");
+
+      ResultSet keys = meta.getPrimaryKeys("qa", "billing", "invoices");
+      check("a key column", keys.next() ? keys.getString("COLUMN_NAME") + " " + keys.getString("PK_NAME") : null, "id invoices_pkey");
+    }
+
+    try (Connection connection = DriverManager.getConnection(url + "&product=MySQL&version=5.7", "", "member-token")) {
+      ResultSet tables = connection.getMetaData().getTables("qa", "qa", "%", null);
+      check("on MySQL's protocol the database is the schema", tables.next() ? tables.getString("TABLE_SCHEM") + " " + tables.getString("TABLE_NAME") : null, "qa billing.invoices");
+    }
+  }
+
+  private static void answersProbesTheEngineCantRun(String url) throws SQLException {
+    try (Connection connection = DriverManager.getConnection(url + "&product=MySQL&version=5.7&engine=doris", "", "member-token");
+        Statement statement = connection.createStatement()) {
+      respond(200, "{\"columns\": [{\"name\": \"x\", \"type\": \"integer\"}], \"rows\": [[1]]}");
+      statement.executeQuery("SELECT 1");
+      Map<?, ?> sent = LAST_REQUEST.get();
+
+      ResultSet plugin = statement.executeQuery("select @@default_authentication_plugin as default_plugin");
+      check("Doris's login plugin, for DataGrip's MySQL 8 probe", plugin.next() ? plugin.getString("default_plugin") : null, "mysql_native_password");
+      check("without asking Doris", LAST_REQUEST.get(), sent);
+
+      statement.executeQuery("select @@default_authentication_plugin");
+      check("a member's own query still runs", LAST_REQUEST.get().get("sql"), "select @@default_authentication_plugin");
+    }
+
+    try (Connection connection = DriverManager.getConnection(url + "&product=MySQL&version=8.0&engine=starrocks", "", "member-token");
+        Statement statement = connection.createStatement()) {
+      ResultSet users = statement.executeQuery("-- Retrieve Users\nselect Host, User from mysql.user");
+      check("StarRocks has no mysql.user rows", users.next(), false);
     }
   }
 

@@ -50,7 +50,7 @@ object QueryDeskDataSources {
     val manager = LocalDataSourceManager.getInstance(project)
     val existing = manager.dataSources.filter { isQueryDesk(it) && QueryDeskServer.serverOf(it.url!!) == server }
     // by credential, so a data source outlives a change to the URL's other parameters
-    val existingCredentials = existing.map { QueryDeskServer.credentialOf(it.url!!) }.toSet()
+    val existingByCredential = existing.associateBy { QueryDeskServer.credentialOf(it.url!!) }
     val wanted = mutableSetOf<String>()
     var added = 0
 
@@ -64,9 +64,14 @@ object QueryDeskDataSources {
         for (credential in credentials) {
           val credentialId = credential.get("id").asString
           wanted += credentialId
-          if (credentialId in existingCredentials) continue
-
           val url = QueryDeskServer.jdbcUrl(server, credentialId, adapter)
+
+          // one added by an older plugin takes this one's URL (its engine, product and version)
+          val current = existingByCredential[credentialId]
+          if (current != null) {
+            if (current.url != url) current.url = url
+            continue
+          }
           val name = database.get("name").asString
           val username = credential.get("username").asString
           val dataSource = LocalDataSource.create(if (credentials.size > 1) "$name ($username)" else name, driver.driverClass, url, "")

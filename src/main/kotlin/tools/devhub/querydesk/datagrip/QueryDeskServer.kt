@@ -14,6 +14,15 @@ object QueryDeskServer {
     "oracle" to ("Oracle" to "19.0"),
     "clickhouse" to ("ClickHouse" to "24.0"),
     "mongodb" to ("MongoDB" to "8.0"),
+    "cockroachdb" to ("PostgreSQL" to "13.0"),
+    "timescaledb" to ("PostgreSQL" to "16.0"),
+    "alloydb" to ("PostgreSQL" to "16.0"),
+    "redshift" to ("Redshift" to "8.0"),
+    "mariadb" to ("MariaDB" to "11.0"),
+    "tidb" to ("MySQL" to "8.0"),
+    "oceanbase" to ("MySQL" to "5.7"),
+    "starrocks" to ("MySQL" to "8.0"),
+    "doris" to ("MySQL" to "5.7"),
   )
 
   fun supports(adapter: String) = adapter in PRODUCTS
@@ -28,6 +37,7 @@ object QueryDeskServer {
       if (uri.scheme == "http") add("ssl=false")
       add("product=" + product.replace(" ", "%20"))
       add("version=$version")
+      add("engine=$adapter")
     }
     val port = if (uri.port == -1) "" else ":${uri.port}"
     return "$URL_PREFIX//${uri.host}$port/$credentialId?${params.joinToString("&")}"
